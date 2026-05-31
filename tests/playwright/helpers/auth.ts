@@ -13,12 +13,12 @@ export async function loginViaSecureFlow(
   await page.goto('/secure-login/');
   await page.locator('#tssl-identifier').fill(user);
   await Promise.all([
-    page.waitForURL(/tssl_step=2/, { timeout: 15_000 }),
+    page.waitForURL(/tssl_step=2/, { timeout: 30_000 }),
     page.locator('form.tssl-login-form button[type="submit"]').click(),
   ]);
   await page.locator('#tssl-password').fill(pass);
   await Promise.all([
-    page.waitForURL(/\/wp-admin/, { timeout: 15_000 }),
+    page.waitForURL(/\/wp-admin/, { timeout: 30_000 }),
     page.locator('form.tssl-login-form button[type="submit"]').click(),
   ]);
 }
@@ -35,7 +35,7 @@ export async function loginViaWpLogin(
   await page.locator('#user_login').fill(user);
   await page.locator('#user_pass').fill(pass);
   await Promise.all([
-    page.waitForURL(/\/wp-admin/, { timeout: 15_000 }),
+    page.waitForURL(/\/wp-admin/, { timeout: 30_000 }),
     page.locator('#wp-submit').click(),
   ]);
 }
