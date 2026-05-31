@@ -25,7 +25,12 @@ class TSSL_Settings {
 
 	public function register(): void {
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
-		add_action( 'admin_init', array( $this, 'maybe_redirect_legacy_settings_url' ) );
+		// Hook the legacy redirect on admin_menu (not admin_init) because
+		// wp-admin/includes/menu.php wp_die()s with "you are not allowed to
+		// access this page" at line ~384 — BEFORE admin.php fires admin_init.
+		// admin_menu fires earlier in that same file (line ~168), giving us a
+		// chance to redirect before the access check kills the request.
+		add_action( 'admin_menu', array( $this, 'maybe_redirect_legacy_settings_url' ), 1 );
 		add_action( 'admin_menu', array( $this, 'add_settings_page' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
 		add_filter( 'plugin_action_links_' . plugin_basename( TSSL_PLUGIN_FILE ), array( $this, 'filter_plugin_action_links' ) );
@@ -469,6 +474,11 @@ class TSSL_Settings {
 		$login_url = home_url( '/' . trim( $opts['custom_login_slug'], '/' ) . '/' );
 		?>
 		<div class="wrap tssl-wrap tssl-settings">
+			<?php
+			// Top-level admin pages don't auto-render settings errors the way
+			// options-general.php does, so emit them explicitly here.
+			settings_errors( self::OPTION_KEY );
+			?>
 			<div class="tssl-plugin-header">
 				<span class="tssl-plugin-icon" aria-hidden="true">
 					<img class="tssl-plugin-mark"

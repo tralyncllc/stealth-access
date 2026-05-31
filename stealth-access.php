@@ -3,7 +3,7 @@
  * Plugin Name:       Stealth Access
  * Plugin URI:        https://tralync.com/stealth-access
  * Description:       Adds a secure two-step login flow, optional CAPTCHA protection, hidden login URLs, password reset controls, and custom login branding.
- * Version:           0.1.11
+ * Version:           0.1.12
  * Author:            Tralync LLC
  * Author URI:        https://tralync.com
  * License:           GPLv2 or later
@@ -33,7 +33,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TSSL_VERSION', '0.1.11' );
+define( 'TSSL_VERSION', '0.1.12' );
 define( 'TSSL_PLUGIN_FILE', __FILE__ );
 define( 'TSSL_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'TSSL_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
