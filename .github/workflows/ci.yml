@@ -20,7 +20,7 @@ jobs:
     name: PHP lint (php -l)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up PHP 8.3
         # SHA-pinned per supply-chain hardening; resolved from the
@@ -48,7 +48,7 @@ jobs:
     # violations over time. Promote to required once the count is zero.
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up PHP 8.3
         # SHA-pinned per supply-chain hardening; resolved from the
@@ -114,7 +114,7 @@ jobs:
       WP_ADMIN_EMAIL: ciadmin@example.test
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Start WordPress + MySQL via docker compose
         run: ./scripts/ci-start.sh
