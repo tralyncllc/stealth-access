@@ -1222,7 +1222,7 @@ class TSSL_Settings {
 
 		<div class="tssl-callout tssl-callout-info tssl-callout-recovery">
 			<strong><?php esc_html_e( 'Locked out?', 'stealth-access' ); ?></strong>
-			<?php esc_html_e( 'Rename the plugin folder via SFTP/SSH from "secure-login-shield" to "secure-login-shield-disabled" — WordPress will deactivate the plugin automatically and you can log in at /wp-login.php. Full recovery instructions are in README.md.', 'stealth-access' ); ?>
+			<?php esc_html_e( 'Rename the plugin folder via SFTP/SSH from "stealth-access" to "stealth-access-disabled" — WordPress will deactivate the plugin automatically and you can log in at /wp-login.php. Full recovery instructions are in README.md.', 'stealth-access' ); ?>
 		</div>
 		<?php
 		$this->close_card();

@@ -76,11 +76,11 @@ Secret keys are never rendered verbatim in HTML. The admin field is blank after 
 
 == Screenshots ==
 
-1. Dashboard with the status summary panel, copy-to-clipboard login URL, and the four feature status badges.
-2. Settings page — General Protection card with the password-reset, hide-default-login-URLs, disable-xmlrpc, and disable-application-passwords toggles.
-3. Settings page — CAPTCHA card with provider selector, mode selector, and masked-fingerprint secret keys.
-4. The custom secure-login portal — Step 1 (username/email).
-5. The custom secure-login portal — Step 2 (password) with optional CAPTCHA widget.
+1. The custom secure-login portal (Step 1) — the two-step form a real visitor sees in place of `/wp-login.php`.
+2. Stealth Access dashboard — status summary panel, copy-to-clipboard login URL, four feature status badges, and the persistent CAPTCHA-misconfig banner that surfaces when keys are missing.
+3. Settings page — General Protection card with the password-reset, hide-default-login-URLs, disable-XML-RPC, and disable-Application-Passwords toggles, each with a Lockout/Compatibility callout.
+4. Settings page — CAPTCHA Protection card with provider selector, the "Configured" status callout, and the masked-fingerprint secret-key UI that never renders the saved secret in HTML.
+5. Dashboard with hidden-login protection ENABLED — the "Hidden Login URLs" status badge flips to "Enabled" and `/wp-login.php` is no longer publicly reachable.
 
 == Changelog ==
 
