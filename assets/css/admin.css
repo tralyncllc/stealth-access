@@ -1,0 +1,755 @@
+/* Secure Login Shield — admin settings page
+ * Every selector is prefixed with `.tssl-` so nothing in this file can leak
+ * to the rest of the WordPress admin chrome (left sidebar, admin bar, etc.).
+ */
+
+/* Restore the HTML default of [hidden] elements inside the settings page,
+ * and also support the explicit `.tssl-is-hidden` toggle class. The grid
+ * layout on `.tssl-setting-row` overrides `display:none`, so we force it
+ * with `!important`. Both rules are scoped to `.tssl-wrap` to never escape
+ * the plugin page.
+ */
+.tssl-wrap [hidden],
+.tssl-wrap .tssl-is-hidden {
+	display: none !important;
+}
+
+/* ============================================================
+ * Wrap + plugin header
+ * ============================================================ */
+
+.tssl-wrap {
+	max-width: 1160px;
+	margin: 20px 20px 24px 0;
+}
+
+.tssl-plugin-header {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	margin: 4px 0 20px;
+}
+
+.tssl-plugin-icon {
+	width: 44px;
+	height: 44px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+}
+
+.tssl-plugin-icon .tssl-plugin-mark {
+	display: block;
+	width: 40px;
+	height: 40px;
+	object-fit: contain;
+}
+
+/* Kept for any leftover legacy markup referencing dashicon-shield. */
+.tssl-plugin-icon .dashicons {
+	font-size: 24px;
+	width: 24px;
+	height: 24px;
+	line-height: 1;
+}
+
+.tssl-plugin-titles {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.tssl-wrap .tssl-plugin-title {
+	margin: 0;
+	padding: 0;
+	font-size: 22px;
+	font-weight: 600;
+	color: #1d2327;
+	line-height: 1.25;
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+}
+
+.tssl-plugin-subtitle {
+	margin: 0;
+	color: #6b7280;
+	font-size: 13px;
+	line-height: 1.4;
+}
+
+.tssl-version-badge {
+	font-size: 12px;
+	color: #6b7280;
+	font-weight: 500;
+	letter-spacing: 0.01em;
+}
+
+/* ============================================================
+ * Status card (top)
+ * ============================================================ */
+
+.tssl-status-card {
+	background: #fff;
+	border: 1px solid #e5e7eb;
+	border-radius: 10px;
+	padding: 22px 26px;
+	margin: 0 0 20px;
+	box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.tssl-status-titles {
+	margin-bottom: 18px;
+}
+
+.tssl-status-title {
+	margin: 0;
+	font-size: 17px;
+	font-weight: 600;
+	color: #1d2327;
+}
+
+.tssl-status-sub {
+	margin: 4px 0 0;
+	color: #6b7280;
+	font-size: 13px;
+}
+
+.tssl-status-divider {
+	border: 0;
+	height: 1px;
+	background: #e5e7eb;
+	margin: 22px 0 20px;
+}
+
+.tssl-status-grid {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 18px 24px;
+	align-items: flex-start;
+}
+
+.tssl-status-cell {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	min-width: 0;
+}
+
+.tssl-status-cell-label {
+	font-size: 12px;
+	color: #4b5563;
+	font-weight: 600;
+	letter-spacing: 0.01em;
+}
+
+.tssl-status-link {
+	text-decoration: none;
+	display: inline-flex;
+	align-self: flex-start;
+	border-radius: 999px;
+}
+
+.tssl-status-link:hover,
+.tssl-status-link:focus {
+	outline: none;
+}
+
+.tssl-status-link:hover .tssl-badge,
+.tssl-status-link:focus .tssl-badge {
+	transform: translateY(-1px);
+	box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+}
+
+.tssl-status-link:focus .tssl-badge {
+	outline: 2px solid rgba(34, 113, 177, 0.5);
+	outline-offset: 2px;
+}
+
+.tssl-status-url-block {
+	margin-bottom: 14px;
+}
+
+.tssl-status-url-heading {
+	display: block;
+	font-size: 12px;
+	font-weight: 600;
+	color: #4b5563;
+	margin-bottom: 6px;
+}
+
+.tssl-status-url-field {
+	position: relative;
+}
+
+.tssl-status-url-input {
+	width: 100%;
+	padding: 10px 44px 10px 14px;
+	border: 1px solid #d1d5db;
+	border-radius: 6px;
+	background: #fff;
+	font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+	font-size: 14px;
+	color: #1d2327;
+	box-sizing: border-box;
+}
+
+.tssl-status-url-input:focus {
+	border-color: #2271b1;
+	outline: 2px solid rgba(34, 113, 177, 0.18);
+	outline-offset: 0;
+}
+
+.tssl-url-icon {
+	position: absolute;
+	right: 6px;
+	top: 50%;
+	transform: translateY(-50%);
+	background: transparent;
+	border: 0;
+	padding: 6px;
+	cursor: pointer;
+	color: #6b7280;
+	border-radius: 4px;
+}
+
+.tssl-url-icon:hover,
+.tssl-url-icon:focus {
+	color: #1d2327;
+	background: #f3f4f6;
+	outline: none;
+}
+
+.tssl-url-icon .dashicons {
+	font-size: 18px;
+	width: 18px;
+	height: 18px;
+	line-height: 1;
+}
+
+.tssl-status-actions {
+	display: flex;
+	gap: 10px;
+	flex-wrap: wrap;
+}
+
+/* ============================================================
+ * Badges
+ * ============================================================ */
+
+.tssl-badge {
+	display: inline-block;
+	padding: 5px 14px;
+	font-size: 12.5px;
+	border-radius: 999px;
+	font-weight: 700;
+	letter-spacing: 0.02em;
+	line-height: 1.5;
+	white-space: nowrap;
+	box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
+	transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.tssl-badge-on {
+	background: #dcfce7;
+	color: #065f46;
+}
+
+.tssl-badge-off {
+	background: #f1f5f9;
+	color: #475569;
+}
+
+.tssl-badge-warn {
+	background: #ffedd5;
+	color: #9a3412;
+}
+
+.tssl-badge-risk {
+	background: #fee2e2;
+	color: #991b1b;
+}
+
+.tssl-badge-neutral {
+	background: #e0f2fe;
+	color: #075985;
+}
+
+/* ============================================================
+ * Settings card (2-column: sidebar + content)
+ * ============================================================ */
+
+.tssl-settings-card {
+	display: grid;
+	grid-template-columns: 300px 1fr;
+	background: #fff;
+	border: 1px solid #e5e7eb;
+	border-radius: 10px;
+	margin: 0 0 20px;
+	overflow: hidden;
+	box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+	scroll-margin-top: 60px;
+}
+
+.tssl-card-sidebar {
+	padding: 26px 24px;
+	background: #f9fafb;
+	border-right: 1px solid #f1f5f9;
+}
+
+.tssl-card-icon {
+	display: inline-flex;
+	width: 38px;
+	height: 38px;
+	border-radius: 9px;
+	align-items: center;
+	justify-content: center;
+	margin-bottom: 12px;
+}
+
+.tssl-card-icon .dashicons {
+	font-size: 20px;
+	width: 20px;
+	height: 20px;
+	line-height: 1;
+}
+
+.tssl-card-section-title {
+	margin: 0 0 6px;
+	font-size: 15px;
+	font-weight: 600;
+	color: #1d2327;
+	line-height: 1.3;
+}
+
+.tssl-card-section-desc {
+	margin: 0;
+	font-size: 12.5px;
+	color: #6b7280;
+	line-height: 1.5;
+}
+
+.tssl-card-content {
+	padding: 16px 26px;
+}
+
+/* === per-section accents === */
+
+.tssl-card-general .tssl-card-sidebar { background: #eff6ff; }
+.tssl-card-general .tssl-card-icon { background: #dbeafe; color: #1d4ed8; }
+
+.tssl-card-custom-login .tssl-card-sidebar { background: #f0f3ff; }
+.tssl-card-custom-login .tssl-card-icon { background: #e0e7ff; color: #4338ca; }
+
+.tssl-card-captcha .tssl-card-sidebar { background: #faf5ff; }
+.tssl-card-captcha .tssl-card-icon { background: #f3e8ff; color: #7e22ce; }
+
+.tssl-card-branding .tssl-card-sidebar { background: #ecfdf5; }
+.tssl-card-branding .tssl-card-icon { background: #d1fae5; color: #047857; }
+
+.tssl-card-recovery .tssl-card-sidebar { background: #fff7ed; }
+.tssl-card-recovery .tssl-card-icon { background: #ffedd5; color: #c2410c; }
+
+/* ============================================================
+ * Setting rows
+ * ============================================================ */
+
+.tssl-setting-row {
+	display: grid;
+	grid-template-columns: 210px 1fr;
+	column-gap: 28px;
+	padding: 18px 0;
+	border-bottom: 1px solid #f3f4f6;
+}
+
+.tssl-setting-row:last-child { border-bottom: 0; }
+.tssl-setting-row:first-child { padding-top: 8px; }
+.tssl-row-fullwidth { grid-template-columns: 1fr; }
+
+.tssl-setting-label {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-weight: 600;
+	color: #1d2327;
+	font-size: 13.5px;
+	padding-top: 4px;
+	flex-wrap: nowrap;
+	line-height: 1.35;
+}
+
+.tssl-setting-label label,
+.tssl-setting-label span {
+	margin: 0;
+	font-weight: 600;
+}
+
+.tssl-setting-label > label,
+.tssl-setting-label > span {
+	white-space: normal;
+	word-break: keep-all;
+	overflow-wrap: normal;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.tssl-setting-label .tssl-help {
+	flex: 0 0 auto;
+}
+
+.tssl-setting-control {
+	min-width: 0;
+	font-size: 13.5px;
+	color: #1d2327;
+}
+
+.tssl-setting-control .description,
+.tssl-row-desc {
+	margin: 6px 0 0;
+	color: #6b7280;
+	font-size: 12.5px;
+	line-height: 1.5;
+}
+
+.tssl-setting-control input[type="text"],
+.tssl-setting-control input[type="url"],
+.tssl-setting-control input[type="password"],
+.tssl-setting-control input[type="number"],
+.tssl-setting-control select,
+.tssl-setting-control .tssl-secret-input {
+	padding: 6px 10px;
+	border: 1px solid #d1d5db;
+	border-radius: 5px;
+	background: #fff;
+}
+
+.tssl-setting-control input[type="text"]:focus,
+.tssl-setting-control input[type="url"]:focus,
+.tssl-setting-control input[type="password"]:focus,
+.tssl-setting-control input[type="number"]:focus,
+.tssl-setting-control select:focus {
+	border-color: #2271b1;
+	outline: 2px solid rgba(34, 113, 177, 0.18);
+	outline-offset: 0;
+}
+
+.tssl-setting-control .regular-text {
+	width: 100%;
+	max-width: 480px;
+}
+
+/* Inline checkbox+label */
+.tssl-checkbox-row {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	margin: 0;
+	font-weight: 600;
+	color: #1d2327;
+	line-height: 1.4;
+	cursor: pointer;
+}
+
+.tssl-checkbox-row input[type="checkbox"] {
+	margin: 0;
+}
+
+.tssl-checkbox-row .tssl-checkbox-text {
+	font-weight: 600;
+}
+
+.tssl-row-fullwidth .tssl-setting-control .description,
+.tssl-row-fullwidth .tssl-row-desc {
+	margin-left: 26px;
+}
+
+.tssl-row-fullwidth .tssl-callout {
+	margin-left: 26px;
+}
+
+/* Number input + unit */
+.tssl-input-with-unit {
+	display: inline-flex;
+	align-items: stretch;
+}
+
+.tssl-input-with-unit input {
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+	border-right: 0;
+	width: 80px;
+}
+
+.tssl-input-unit {
+	padding: 6px 12px;
+	background: #f3f4f6;
+	border: 1px solid #d1d5db;
+	border-top-right-radius: 5px;
+	border-bottom-right-radius: 5px;
+	color: #4b5563;
+	font-size: 13px;
+}
+
+/* ============================================================
+ * Callouts
+ * ============================================================ */
+
+.tssl-callout {
+	margin-top: 10px;
+	padding: 10px 14px;
+	border-radius: 6px;
+	border-left: 4px solid #2271b1;
+	background: #eff6ff;
+	font-size: 13px;
+	line-height: 1.5;
+	color: #1d2327;
+}
+
+.tssl-callout strong {
+	display: inline-block;
+	margin-right: 6px;
+}
+
+.tssl-callout-warning,
+.tssl-callout-warn {
+	border-left-color: #f59e0b;
+	background: #fffbeb;
+	color: #78350f;
+}
+
+.tssl-callout-info {
+	border-left-color: #3b82f6;
+	background: #eff6ff;
+	color: #1e3a8a;
+}
+
+.tssl-callout-recovery {
+	margin: 14px 0 4px;
+}
+
+/* ============================================================
+ * Provider panel (bordered sub-card inside CAPTCHA card)
+ * ============================================================ */
+
+.tssl-provider-panel {
+	background: #fff;
+	border: 1px solid #e5e7eb;
+	border-radius: 8px;
+	padding: 6px 18px 14px;
+	margin: 14px 0 4px;
+}
+
+.tssl-provider-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 10px 0 6px;
+	border-bottom: 1px solid #f1f5f9;
+	margin-bottom: 6px;
+}
+
+.tssl-provider-name {
+	margin: 0;
+	font-size: 14px;
+	font-weight: 600;
+	color: #1d4ed8;
+}
+
+.tssl-provider-desc {
+	margin: 6px 0 10px;
+	color: #50575e;
+	font-size: 13px;
+	line-height: 1.5;
+}
+
+.tssl-mode-panel {
+	margin-top: 4px;
+}
+
+.tssl-provider-docs-link,
+.tssl-setup-link {
+	font-size: 13px;
+	color: #1d4ed8;
+	text-decoration: none;
+	font-weight: 600;
+}
+
+.tssl-provider-docs-link:hover,
+.tssl-setup-link:hover {
+	text-decoration: underline;
+}
+
+/* ============================================================
+ * Branding preview
+ * ============================================================ */
+
+.tssl-logo-preview {
+	margin-top: 4px;
+}
+
+.tssl-logo-preview img {
+	display: block;
+	height: auto;
+	border: 1px solid #e5e7eb;
+	border-radius: 4px;
+	padding: 4px;
+	background: #fff;
+}
+
+/* ============================================================
+ * Dashboard
+ * ============================================================ */
+
+.tssl-dashboard-cta {
+	margin: 16px 4px 0;
+	color: #50575e;
+	font-size: 13.5px;
+}
+
+.tssl-dashboard-cta a {
+	font-weight: 600;
+}
+
+/* ============================================================
+ * Submit row
+ * ============================================================ */
+
+.tssl-submit-row {
+	margin-top: 18px;
+}
+
+/* ============================================================
+ * Copy button feedback
+ * ============================================================ */
+
+.tssl-copy.is-copied {
+	background: #dcfce7 !important;
+	color: #065f46 !important;
+	border-color: #a7f3d0 !important;
+}
+
+/* ============================================================
+ * Secret-key field hint
+ * ============================================================ */
+
+.tssl-secret-hint {
+	margin-top: 6px;
+}
+
+.tssl-secret-fingerprint {
+	display: inline-block;
+	background: #f6f7f7;
+	border: 1px solid #dcdcde;
+	color: #1d2327;
+	padding: 1px 8px;
+	border-radius: 4px;
+	font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+	font-size: 12.5px;
+	letter-spacing: 0.04em;
+	user-select: all;
+}
+
+/* ============================================================
+ * Help icon / tooltip
+ * ============================================================ */
+
+.tssl-help {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	color: #94a3b8;
+	cursor: help;
+	outline: none;
+	line-height: 1;
+	vertical-align: middle;
+}
+
+.tssl-help:hover { color: #1d4ed8; }
+
+.tssl-help .dashicons {
+	font-size: 16px;
+	width: 16px;
+	height: 16px;
+	line-height: 1;
+}
+
+.tssl-help:focus {
+	color: #1d4ed8;
+	outline: 2px solid rgba(34, 113, 177, 0.4);
+	outline-offset: 2px;
+	border-radius: 50%;
+}
+
+/* Legacy inline tip is no longer rendered; keep the rule as a safety net
+ * in case any markup still carries the class. */
+.tssl-help-tip { display: none !important; }
+
+/* Floating tooltip — appended to <body> by admin.js so it escapes every
+ * card and provider-panel that uses `overflow: hidden`. Position is fixed
+ * (set inline by JS), max-width capped so it never blows past the viewport,
+ * z-index high enough to sit above WP admin chrome (which uses z-index 100k
+ * for the admin bar). Arrow follows the triggering icon's horizontal
+ * center via a CSS custom property set by the JS. */
+.tssl-help-tip-floating {
+	position: fixed;
+	z-index: 999999;
+	display: none;
+	background: #1d2327;
+	color: #fff;
+	padding: 8px 12px;
+	border-radius: 4px;
+	font-size: 12px;
+	font-weight: 400;
+	line-height: 1.45;
+	max-width: 280px;
+	box-shadow: 0 6px 16px rgba(15, 23, 42, 0.18);
+	white-space: normal;
+	text-align: left;
+	pointer-events: none;
+	box-sizing: border-box;
+}
+
+.tssl-help-tip-floating::after {
+	content: "";
+	position: absolute;
+	left: var(--tssl-arrow-x, 50%);
+	width: 0;
+	height: 0;
+	border: 5px solid transparent;
+	transform: translateX(-50%);
+}
+
+.tssl-help-tip-floating[data-placement="top"]::after {
+	top: 100%;
+	border-top-color: #1d2327;
+}
+
+.tssl-help-tip-floating[data-placement="bottom"]::after {
+	bottom: 100%;
+	border-bottom-color: #1d2327;
+}
+
+/* ============================================================
+ * Responsive
+ * ============================================================ */
+
+@media (max-width: 900px) {
+	.tssl-settings-card { grid-template-columns: 1fr; }
+	.tssl-card-sidebar { border-right: 0; border-bottom: 1px solid #f1f5f9; }
+	.tssl-status-header { flex-direction: column; }
+	.tssl-status-grid { gap: 18px; }
+}
+
+@media (max-width: 782px) {
+	.tssl-setting-row { grid-template-columns: 1fr; row-gap: 6px; }
+	.tssl-row-fullwidth .tssl-setting-control .description,
+	.tssl-row-fullwidth .tssl-row-desc { margin-left: 0; }
+	.tssl-row-fullwidth .tssl-callout { margin-left: 0; }
+	.tssl-card-content { padding: 14px 18px; }
+	.tssl-status-card { padding: 18px; }
+	.tssl-help-tip { max-width: 220px; }
+}

@@ -1,0 +1,290 @@
+/* Secure Login Shield — portal-style login page.
+ *
+ * All rules are scoped under `.tssl-portal-body` (the <body> class set by the
+ * plugin's login-template) or under `.tssl-card` so this stylesheet has no
+ * effect on any other WordPress page when the shortcode is reused outside the
+ * dedicated template.
+ */
+
+/* ---------- Body + page background --------------------------------- */
+
+.tssl-portal-body {
+	margin: 0;
+	padding: 0;
+	min-height: 100vh;
+	background: linear-gradient(135deg, #f8fafc 0%, #eef2f7 100%);
+	background-attachment: fixed;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+	color: #1e293b;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+/* Plug a couple of common theme inline-style leaks. */
+.tssl-portal-body.wp-singular {
+	background: linear-gradient(135deg, #f8fafc 0%, #eef2f7 100%);
+}
+
+/* Wrapper added by the plugin's template. */
+.tssl-portal {
+	min-height: 100vh;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 32px 16px;
+	box-sizing: border-box;
+}
+
+/* ---------- The card ----------------------------------------------- */
+
+.tssl-card {
+	width: 100%;
+	max-width: 480px;
+	background: #fff;
+	border-radius: 20px;
+	box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.04);
+	padding: 44px 44px 32px;
+	box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+	.tssl-card {
+		padding: 30px 22px 22px;
+		border-radius: 16px;
+	}
+	.tssl-portal { padding: 16px 12px; }
+}
+
+/* ---------- Header (brand + title + subtitle) ---------------------- */
+
+.tssl-card-head {
+	text-align: center;
+	margin-bottom: 28px;
+}
+
+.tssl-brand {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	margin-bottom: 18px;
+}
+
+.tssl-brand-default {
+	width: 72px;
+	height: 72px;
+}
+
+.tssl-brand-default .tssl-default-logo {
+	display: block;
+	width: 72px;
+	height: 72px;
+	object-fit: contain;
+}
+
+.tssl-brand-custom {
+	max-width: 100%;
+}
+
+.tssl-brand-custom .tssl-brand-logo,
+.tssl-brand-custom img {
+	display: block;
+	max-width: 100%;
+	height: auto;
+}
+
+.tssl-portal-title {
+	font-size: 26px;
+	font-weight: 700;
+	color: #0f172a;
+	margin: 0 0 6px;
+	line-height: 1.2;
+	letter-spacing: -0.01em;
+}
+
+.tssl-portal-subtitle {
+	font-size: 14.5px;
+	color: #64748b;
+	margin: 0;
+	line-height: 1.55;
+}
+
+/* ---------- Card body (form, error, captcha) ----------------------- */
+
+.tssl-card-body {
+	margin-bottom: 18px;
+}
+
+.tssl-message {
+	padding: 11px 14px;
+	border-radius: 10px;
+	font-size: 13.5px;
+	line-height: 1.5;
+	margin-bottom: 14px;
+}
+
+.tssl-message.tssl-error,
+.tssl-error {
+	background: #fef2f2;
+	color: #991b1b;
+	border: 1px solid #fecaca;
+}
+
+/* ---------- Form fields -------------------------------------------- */
+
+.tssl-login-form {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	margin: 0;
+}
+
+.tssl-field {
+	display: flex;
+	flex-direction: column;
+	gap: 7px;
+}
+
+.tssl-label {
+	font-size: 13.5px;
+	font-weight: 600;
+	color: #1e293b;
+	letter-spacing: 0.005em;
+}
+
+.tssl-input {
+	width: 100%;
+	padding: 12px 14px;
+	border: 1px solid #cbd5e1;
+	border-radius: 10px;
+	font-size: 15px;
+	font-family: inherit;
+	color: #0f172a;
+	background: #fff;
+	box-sizing: border-box;
+	transition: border-color 150ms ease, box-shadow 150ms ease;
+	-webkit-appearance: none;
+	appearance: none;
+}
+
+.tssl-input::placeholder {
+	color: #94a3b8;
+}
+
+.tssl-input:focus {
+	outline: none;
+	border-color: #2563eb;
+	box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14);
+}
+
+/* ---------- Primary button ----------------------------------------- */
+
+.tssl-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	width: 100%;
+	padding: 13px 20px;
+	background: #2563eb;
+	color: #fff;
+	border: 0;
+	border-radius: 12px;
+	font-size: 15px;
+	font-weight: 600;
+	cursor: pointer;
+	font-family: inherit;
+	margin-top: 4px;
+	transition: background-color 140ms ease, transform 90ms ease, box-shadow 140ms ease;
+	box-shadow: 0 6px 16px rgba(37, 99, 235, 0.22);
+}
+
+.tssl-button:hover {
+	background: #1d4ed8;
+}
+
+.tssl-button:focus-visible {
+	outline: 2px solid #1d4ed8;
+	outline-offset: 3px;
+}
+
+.tssl-button:active {
+	transform: translateY(1px);
+	box-shadow: 0 3px 8px rgba(37, 99, 235, 0.22);
+}
+
+.tssl-button .tssl-arrow {
+	width: 16px;
+	height: 16px;
+	flex-shrink: 0;
+	display: block;
+}
+
+/* ---------- Restart form (step 2 only) ----------------------------- */
+
+.tssl-restart-form {
+	margin: 12px 0 0;
+	text-align: center;
+}
+
+.tssl-restart-form .tssl-link {
+	background: none;
+	border: 0;
+	padding: 4px 6px;
+	color: #64748b;
+	font-family: inherit;
+	font-size: 13px;
+	cursor: pointer;
+	text-decoration: underline;
+}
+
+.tssl-restart-form .tssl-link:hover {
+	color: #2563eb;
+}
+
+/* ---------- Footer (Protected by Stealth Access) ------------------- */
+
+.tssl-card-footer {
+	text-align: center;
+	margin-top: 22px;
+	padding-top: 18px;
+	border-top: 1px solid #e2e8f0;
+	color: #94a3b8;
+	font-size: 11.5px;
+	letter-spacing: 0.02em;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+}
+
+.tssl-shield-mini {
+	width: 14px;
+	height: 14px;
+	color: #94a3b8;
+	display: block;
+}
+
+/* ---------- CAPTCHA host slot -------------------------------------- */
+
+.tssl-captcha {
+	display: flex;
+	justify-content: center;
+	margin: 4px 0;
+}
+
+.tssl-captcha-note {
+	font-size: 11.5px;
+	color: #94a3b8;
+	margin: 8px 0 0;
+	text-align: center;
+}
+
+/* ---------- "Already signed in" state ------------------------------ */
+
+.tssl-already-in {
+	text-align: center;
+	color: #475569;
+	margin: 0;
+	font-size: 15px;
+	line-height: 1.5;
+}

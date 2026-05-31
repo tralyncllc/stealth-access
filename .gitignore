@@ -1,0 +1,29 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Env files
+.env
+.env.*
+
+# Dependency dirs (not used by this plugin today, but listed defensively)
+node_modules/
+vendor/
+
+# Playwright / test artifacts
+playwright-report/
+playwright/.cache/
+playwright/playwright-results/output/
+playwright/playwright-results/html/
+test-results/
+
+# Packaged archives
+*.zip
+*.tar
+*.tar.gz
