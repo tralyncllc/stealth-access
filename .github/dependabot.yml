@@ -1,0 +1,52 @@
+# Dependabot configuration.
+#
+# Surfaces version bumps for everything CI depends on so a supply-chain
+# compromise of any upstream action shows up as a reviewable PR rather
+# than going stale. See:
+#   https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+
+updates:
+  # GitHub Actions used in .github/workflows/*.yml.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Los_Angeles
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: ci
+      include: scope
+
+  # npm packages used by the Playwright suite. The tree is small
+  # (@playwright/test + dotenv) but bumping Playwright surfaces browser
+  # security updates we care about.
+  - package-ecosystem: npm
+    directory: /tests/playwright
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Los_Angeles
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - npm
+    commit-message:
+      prefix: deps
+      include: scope
+    groups:
+      # Bundle minor + patch bumps from the same ecosystem into a single
+      # PR so we don't drown in noise. Majors stay separate so they
+      # get a deliberate review.
+      playwright-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch

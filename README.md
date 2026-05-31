@@ -7,7 +7,7 @@ Lightweight, dependency-free WordPress login hardening by **Tralync LLC**: two-s
 - **License:** GPLv2 or later
 - **Author:** [Tralync LLC](https://tralync.com)
 
-> **Internal compatibility note:** Internal code prefixes may still use `TSSL` (PHP class prefix, `tssl_settings` option key, `tssl_login_*` cookie/transient names, and the `secure-login-shield` plugin folder + text domain) for backward compatibility during the 0.x development series. These are kept stable so existing installs keep their settings, custom login slug, login page, and CAPTCHA keys through the rename. User-facing branding everywhere reads **Stealth Access**.
+> **Internal compatibility note:** Internal code still uses the `TSSL` PHP class prefix and the `tssl_settings` option key (plus the `tssl_login_*` cookie/transient names) for backward compatibility with the original Secure Login Shield 0.x line. These identifiers are kept stable so 0.x installs that updated to Stealth Access retain their settings, custom login slug, login page, and CAPTCHA keys. The plugin folder is `stealth-access`. User-facing branding everywhere reads **Stealth Access**.
 
 ## Features
 
@@ -23,9 +23,41 @@ Lightweight, dependency-free WordPress login hardening by **Tralync LLC**: two-s
 - Safe redirects via `wp_validate_redirect()` and `wp_safe_redirect()`.
 - Card-based admin settings page with a status summary panel and a copy-to-clipboard button for the login URL.
 
+## Threat model
+
+Stealth Access is a login-hardening plugin. It raises the cost of common attacks and closes specific bypass surfaces that WordPress core leaves open by default. It is **not** a substitute for a WAF, a rate-limiting plugin, or competent hosting. The boundaries below are intentional and audited — knowing them is part of running the plugin correctly.
+
+### What Stealth Access defends against
+
+- **Brute-force login attempts** against the secure-login two-step form and (when `hide_default_login_urls` is on) against `/wp-login.php`. Both steps are CAPTCHA-gateable and nonce-protected; Step 1 is enumeration-resistant by design.
+- **Automated bot logins** that scrape WordPress sites for default `/wp-login.php` endpoints. When the URL hider is on, `/wp-login.php` is blocked at `login_init` with a configurable behaviour (404, redirect home, redirect to a custom URL).
+- **The `wp-login.php?action=interim-login` action-coercion bypass** (audit finding H1). WordPress core decays unknown action values to the standard `login` form; the plugin no longer whitelists `interim-login`, so the bypass is closed.
+- **Authentication via `/xmlrpc.php`** (audit finding H2). XML-RPC's auth path is rate-limit-free in WordPress core; the plugin disables `xmlrpc_enabled` and short-circuits `/xmlrpc.php` requests at `wp_loaded` by default. Admins can opt back in for Jetpack / mobile-app integrations.
+- **Authentication via REST Application Passwords** (audit finding H2). Application Passwords accept HTTP Basic auth against `/wp-json/wp/v2/users/me` regardless of two-step state; the plugin disables `wp_is_application_passwords_available` by default. Admins can opt back in.
+- **Discovery of the hidden login URL** via `/wp-json/wp/v2/pages`, `/wp-json/wp/v2/search`, `/wp-sitemap.xml`, the front-end `?s=…` search, and the lost-password URL filter on theme comment forms (audit findings M2, M5, M6, M7). The slug-secrecy contract holds for the default hardened configuration.
+- **Silent CAPTCHA misconfiguration** (audit finding M4). When a provider is selected but keys are missing, an admin banner appears across wp-admin and a rate-limited line is written to `error.log`. The login flow still works — missing keys never block login — but the degradation in defence depth is now loud.
+
+### What it does NOT defend against
+
+- **Multisite / network deployments.** Not tested. Compatible single-site only. Evaluate carefully before activating on a network.
+- **Sophisticated timing attacks against Step 2** to enumerate registered emails (audit finding M3, accepted risk). Step 1 is enumeration-resistant; Step 2's `wp_signon` path has measurable timing differences for known vs unknown emails. Mitigated by the per-attempt CAPTCHA cost but not eliminated.
+- **Per-IP or per-credential brute-force lockout.** The plugin raises per-attempt cost via CAPTCHA but does not lock accounts after N failures. Pair with Limit Login Attempts Reloaded, Wordfence, or a hosting-layer rate limiter if you need lockout-based defence.
+- **In-browser credential theft via XSS in unrelated plugins or in your theme.** The `tssl_login_token` Step-1 cookie is HttpOnly, but the WordPress auth cookies issued after a successful login are subject to the same XSS surface as any other WordPress site.
+- **Slug disclosure when `hide_default_login_urls` is explicitly off.** That setting is the master toggle for slug secrecy; turning it off is an informed choice to publish the URL in HTML.
+- **Slug disclosure in the `Location` header of `/wp-login.php?action=lostpassword`** when `disable_password_reset=1` AND `hide_default_login_urls=0` (audit finding M8, accepted risk). The trigger configuration contradicts its own intent.
+
+### Assumed deployment model
+
+- Single-site WordPress 6.8 or newer.
+- PHP 8.1 or newer.
+- HTTPS recommended. The plugin still works on HTTP, but the `Secure` cookie attribute is only set when WordPress sees `is_ssl()` as true. Run behind TLS in production.
+- Behind a reasonable hosting layer. Stealth Access is not a substitute for a WAF.
+- The custom login URL is a **soft secret**, not a hard authentication boundary. Slug discovery is not authentication failure; an attacker who finds the URL still has to defeat CAPTCHA, the two-step flow, and (where configured) external rate-limiting.
+- The XML-RPC / Application Passwords disable-by-default posture means that mobile-app, Jetpack, and external-tooling integrations require explicit opt-in. Document this in your operations runbook before activating the plugin on a site that depends on those paths.
+
 ## Installation
 
-1. Copy the `secure-login-shield` folder into `wp-content/plugins/`.
+1. Copy the `stealth-access` folder into `wp-content/plugins/`.
 2. In **Plugins**, activate **Stealth Access**.
 3. Visit **Settings → Stealth Access** to review and configure.
 
@@ -109,7 +141,7 @@ If you disable password reset **and** forget your password, you cannot reset it 
 ### Filesystem recovery (recommended)
 
 ```bash
-mv wp-content/plugins/secure-login-shield wp-content/plugins/secure-login-shield-disabled
+mv wp-content/plugins/stealth-access wp-content/plugins/stealth-access-disabled
 ```
 
 WordPress silently deactivates the plugin on the next admin page load.
@@ -141,7 +173,7 @@ The plugin reseeds defaults on the next request.
 
 ## Development status
 
-Version `0.1.1`. Code style aims to be close to WordPress Coding Standards.
+Version `1.0.0` (first public release). Code style targets WordPress Coding Standards (advisory in CI). See `Security_Audit.md` (local-only) for the closed audit findings, accepted risks, and remediation history.
 
 ## Testing
 
