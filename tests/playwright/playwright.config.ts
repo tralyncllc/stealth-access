@@ -16,7 +16,14 @@ export default defineConfig({
   outputDir: './playwright-results/output',
   fullyParallel: false,
   workers: 1, // Tests mutate shared site state — must run serially.
-  retries: 0,
+  // CI surfaces an intermittent Chromium autofill quirk on
+  // loginViaWpLogin: after some accumulated browser-credentials state,
+  // .fill('#user_login', ...) gets overwritten by the auto-saved
+  // password before submission. Retry once so the auth helper gets a
+  // clean slate. Two consecutive failures still surface as a real
+  // failure. Local runs (with CI=false) keep retries: 0 for fast
+  // fail-fast feedback.
+  retries: process.env.CI ? 1 : 0,
   reporter: [
     ['list'],
     ['html', { outputFolder: 'playwright-results/html', open: 'never' }],
