@@ -137,6 +137,102 @@ The plugin reseeds defaults on the next request.
 
 Version `0.1.1`. Code style aims to be close to WordPress Coding Standards.
 
+## Testing
+
+The plugin ships with a Playwright end-to-end suite under `tests/playwright/`.
+There are two ways to run it.
+
+### Against your existing local WordPress
+
+Use this when you already have WordPress running (Docker, Local, MAMP, whatever)
+and you're iterating on the plugin.
+
+Prerequisites:
+
+- WordPress with the plugin installed and active
+- An admin user you have credentials for
+- Node.js 20+
+- Either:
+  - A way to run `wp-cli` against the WordPress (defaults to
+    `docker exec -i -u www-data plugin-app wp --path=/var/www/html` — i.e. a
+    container literally named `plugin-app`), OR
+  - `WP_CLI_CMD` set to your own wrapper
+
+Steps:
+
+```bash
+cd tests/playwright
+npm ci
+npx playwright install --with-deps chromium
+cp .env.example .env   # then edit WP_BASE_URL / WP_ADMIN_USER / WP_ADMIN_PASS
+npm test
+```
+
+Environment variables (read by `helpers/env.ts` and `playwright.config.ts`):
+
+| Var | Purpose | Default |
+| --- | --- | --- |
+| `WP_BASE_URL` | Where Playwright points its browser | — (required) |
+| `WP_ADMIN_USER` | Admin login | — (required) |
+| `WP_ADMIN_PASS` | Admin password | — (required) |
+| `WP_CLI_CMD` | Full shell prefix that invokes `wp` against the site under test | `docker exec -i -u www-data plugin-app wp --path=/var/www/html` |
+| `WP_CONTAINER` | Container name used in the default `WP_CLI_CMD` | `plugin-app` |
+| `WP_PATH` | WordPress install path inside the container | `/var/www/html` |
+
+### Against a clean disposable WordPress (matches CI)
+
+Use this when you want to reproduce exactly what GitHub Actions runs.
+
+```bash
+# from the plugin repo root
+./scripts/ci-start.sh                 # docker compose up wordpress + mysql + wp-cli
+./scripts/ci-wait-for-wordpress.sh    # poll http://localhost:8889
+./scripts/ci-install-wordpress.sh     # core install, activate plugin, set permalinks
+./scripts/ci-run-playwright.sh        # runs the suite with CI env vars set
+./scripts/ci-stop.sh                  # tear down + drop the DB
+```
+
+The CI stack exposes WordPress on `http://localhost:8889` (a different port
+from the dev compose) so you can run both at once without a collision.
+
+### PHP lint
+
+```bash
+find . -path ./tests -prune -o -path ./node_modules -prune -o \
+  -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+```
+
+(This is exactly what the `php-lint` CI job does.)
+
+## CI
+
+`.github/workflows/ci.yml` runs on every push and pull request. Three jobs:
+
+1. **PHP lint** — `php -l` over every plugin `.php` file. Blocking.
+2. **WordPress Coding Standards** — PHPCS with the `WordPress` + `WordPress-Extra`
+   rulesets. Advisory (`continue-on-error: true`) until the codebase is fully
+   conformant; the report is uploaded as the `phpcs-report` artifact so
+   violations can be chipped away.
+3. **Playwright** — spins up the CI WordPress stack
+   (`tests/ci/docker-compose.ci.yml`), installs core, activates the plugin,
+   runs the full Playwright suite. Blocking.
+
+### Artifacts uploaded on failure
+
+- `phpcs-report` — PHPCS checkstyle XML (always uploaded if non-empty)
+- `playwright-artifacts` — `tests/playwright/playwright-results/` (HTML
+  report, traces, screenshots, videos) plus `artifacts/docker-logs/` (logs
+  from the WordPress, MySQL, and wp-cli containers, plus
+  `wp-content/debug.log`).
+
+### Secrets
+
+**None required.** The CI WordPress install uses generated CI-only
+credentials (admin: `ciadmin` / `Ci-Admin-Pass-2026!`). CAPTCHA tests
+verify provider UI, missing-key behavior, and that secrets don't leak into
+public HTML — none of them call out to Cloudflare or Google, so no live
+keys are needed.
+
 ## Uninstall
 
 `uninstall.php` removes the `tssl_settings` option and any leftover `tssl_login_*` transients. The login page and its content are **not** deleted.

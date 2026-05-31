@@ -11,17 +11,23 @@ Thumbs.db
 # Env files
 .env
 .env.*
+!.env.example
 
-# Dependency dirs (not used by this plugin today, but listed defensively)
+# Dependency dirs (matched at any depth)
 node_modules/
 vendor/
 
 # Playwright / test artifacts
 playwright-report/
-playwright/.cache/
-playwright/playwright-results/output/
-playwright/playwright-results/html/
+playwright-results/
 test-results/
+.cache/
+
+# Composer
+composer.lock
+
+# CI bundling output
+artifacts/
 
 # Packaged archives
 *.zip

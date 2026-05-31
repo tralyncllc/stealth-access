@@ -1,0 +1,40 @@
+# Files and directories excluded from the wordpress.org SVN push. The
+# canonical SVN tag should contain only what end users need to install the
+# plugin — no test fixtures, CI infrastructure, or dev-only source assets.
+#
+# Used by 10up/action-wordpress-plugin-deploy and `rsync --filter` workflows.
+
+# VCS / CI
+.git
+.github
+.gitignore
+.gitattributes
+.distignore
+
+# Tests + dev tooling
+tests
+scripts
+node_modules
+vendor
+phpcs.xml
+phpcs.xml.dist
+phpunit.xml
+phpunit.xml.dist
+package.json
+package-lock.json
+composer.json
+composer.lock
+
+# Source / authoring assets (the runtime icons under assets/img/ are shipped)
+Stealth_Access_Logo.png
+
+# Build / test output
+playwright-report
+playwright-results
+test-results
+artifacts
+
+# OS junk
+.DS_Store
+Thumbs.db
+*.log

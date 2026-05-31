@@ -1,0 +1,161 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+# Cancel in-flight runs for the same ref when a new commit lands.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  php-lint:
+    name: PHP lint (php -l)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          coverage: none
+          tools: none
+
+      - name: php -l on every plugin .php file
+        run: |
+          set -e
+          fail=0
+          while IFS= read -r -d '' f; do
+            php -l "$f" >/dev/null || { echo "::error file=$f::syntax error"; fail=1; }
+          done < <(find . -path ./tests -prune -o -path ./node_modules -prune -o -type f -name '*.php' -print0)
+          exit $fail
+
+  coding-standards:
+    name: WordPress Coding Standards (advisory)
+    runs-on: ubuntu-latest
+    # Advisory only: the codebase hasn't been WPCS-formatted yet, so a clean
+    # exit is aspirational. The report is uploaded so we can chip away at
+    # violations over time. Promote to required once the count is zero.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          coverage: none
+          tools: composer, cs2pr
+
+      - name: Install PHPCS + WPCS
+        run: |
+          composer global require --no-progress --no-interaction \
+            "dealerdirect/phpcodesniffer-composer-installer" \
+            "squizlabs/php_codesniffer:^3.10" \
+            "wp-coding-standards/wpcs:^3.1" \
+            "phpcompatibility/phpcompatibility-wp:^2.1"
+          echo "$HOME/.composer/vendor/bin" >> "$GITHUB_PATH"
+
+      - name: Show configured standards
+        run: phpcs -i
+
+      - name: Run PHPCS (WordPress + WordPress-Extra)
+        id: phpcs
+        run: |
+          phpcs \
+            --standard=WordPress,WordPress-Extra \
+            --extensions=php \
+            --ignore=tests/,node_modules/,vendor/ \
+            --report-full \
+            --report-summary \
+            --report-checkstyle=phpcs-report.xml \
+            -- includes/ stealth-access.php uninstall.php || true
+          # Pretty-print annotations for the PR but keep the job green.
+          if [ -s phpcs-report.xml ]; then
+            cs2pr --graceful-warnings phpcs-report.xml || true
+          fi
+
+      - name: Upload PHPCS report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phpcs-report
+          path: phpcs-report.xml
+          if-no-files-found: ignore
+
+  playwright:
+    name: Playwright (WordPress in Docker)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    env:
+      COMPOSE_FILE: tests/ci/docker-compose.ci.yml
+      COMPOSE_PROJECT_NAME: stealth-access-ci
+      WP_BASE_URL: http://localhost:8889
+      WP_ADMIN_USER: ciadmin
+      WP_ADMIN_PASS: Ci-Admin-Pass-2026!
+      WP_ADMIN_EMAIL: ciadmin@example.test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start WordPress + MySQL via docker compose
+        run: ./scripts/ci-start.sh
+
+      - name: Wait for WordPress to respond
+        run: ./scripts/ci-wait-for-wordpress.sh
+
+      - name: Install WordPress, activate plugin, set permalinks
+        run: ./scripts/ci-install-wordpress.sh
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: tests/playwright/package-lock.json
+
+      - name: Install npm dependencies
+        working-directory: tests/playwright
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('tests/playwright/package-lock.json') }}
+
+      - name: Install Playwright browser + OS deps
+        working-directory: tests/playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright suite
+        run: ./scripts/ci-run-playwright.sh
+
+      - name: Capture container logs on failure
+        if: failure()
+        run: |
+          mkdir -p artifacts/docker-logs
+          docker compose -p "$COMPOSE_PROJECT_NAME" -f "$COMPOSE_FILE" logs --no-color wordpress > artifacts/docker-logs/wordpress.log 2>&1 || true
+          docker compose -p "$COMPOSE_PROJECT_NAME" -f "$COMPOSE_FILE" logs --no-color db > artifacts/docker-logs/db.log 2>&1 || true
+          docker compose -p "$COMPOSE_PROJECT_NAME" -f "$COMPOSE_FILE" logs --no-color wpcli > artifacts/docker-logs/wpcli.log 2>&1 || true
+          docker compose -p "$COMPOSE_PROJECT_NAME" -f "$COMPOSE_FILE" exec -T wordpress sh -c 'cat /var/www/html/wp-content/debug.log 2>/dev/null || true' > artifacts/docker-logs/wp-debug.log 2>&1 || true
+
+      - name: Upload Playwright artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: |
+            tests/playwright/playwright-results/
+            artifacts/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Tear down stack
+        if: always()
+        run: ./scripts/ci-stop.sh

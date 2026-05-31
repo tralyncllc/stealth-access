@@ -1,0 +1,16 @@
+{
+  "name": "stealth-access-playwright",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Playwright end-to-end tests for the Stealth Access WordPress plugin.",
+  "scripts": {
+    "test": "playwright test",
+    "test:playwright": "playwright test",
+    "test:playwright:headed": "playwright test --headed",
+    "test:report": "playwright show-report playwright-results/html"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "dotenv": "^17.4.2"
+  }
+}

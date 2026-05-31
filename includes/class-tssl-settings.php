@@ -164,7 +164,7 @@ class TSSL_Settings {
 			'manage_options',
 			self::DASHBOARD_SLUG,
 			array( $this, 'render_dashboard_page' ),
-			TSSL_PLUGIN_URL . 'assets/img/stealth-access-icon.png',
+			'dashicons-shield',
 			81
 		);
 

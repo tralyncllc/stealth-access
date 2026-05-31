@@ -1,0 +1,79 @@
+# CI-only WordPress + MySQL stack.
+#
+# This is NOT the local dev compose (that lives at
+# ~/docker/wordpress_plugin/docker-compose.yml and includes phpmyadmin and
+# uses an existing bind-mount of the whole WP install).
+#
+# Here we mount ONLY the plugin source into a stock WordPress image so the
+# CI environment is fully reproducible and contains nothing but the plugin
+# under test.
+#
+# Project root for this compose is the plugin repo root, so the relative
+# path `../..` from `tests/ci/` resolves to the plugin directory itself.
+# Run from the plugin repo root:
+#   docker compose -f tests/ci/docker-compose.ci.yml up -d
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: stealth-access-ci-db
+    environment:
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpress
+      MYSQL_ROOT_PASSWORD: wordpress
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pwordpress"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    tmpfs:
+      - /var/lib/mysql
+
+  wordpress:
+    image: wordpress:php8.3-apache
+    container_name: stealth-access-ci-wp
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      # Expose on 8889 to avoid clashing with the local dev compose (which
+      # publishes 8090) and any other WordPress instance the host may run.
+      - "8889:80"
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DEBUG: 1
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_DEBUG_LOG', true);
+        define('WP_DEBUG_DISPLAY', false);
+        define('SCRIPT_DEBUG', true);
+    volumes:
+      # Mount the plugin source into the container so the running WP picks
+      # it up at /wp-content/plugins/stealth-access. The host path is the
+      # plugin repo root, resolved relative to this compose file.
+      - ../..:/var/www/html/wp-content/plugins/stealth-access:ro
+
+  wpcli:
+    image: wordpress:cli-php8.3
+    container_name: stealth-access-ci-wpcli
+    depends_on:
+      wordpress:
+        condition: service_started
+    # Run as www-data so the file owner matches Apache's user (33:33). The
+    # wordpress:cli image defaults to UID 33 already, but we set it
+    # explicitly for clarity.
+    user: "33:33"
+    volumes_from:
+      - wordpress
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+    # Idle by default; CI scripts invoke individual `wp` commands via
+    # `docker compose exec wpcli wp ...`.
+    entrypoint: /bin/sh
+    command: ["-c", "tail -f /dev/null"]
