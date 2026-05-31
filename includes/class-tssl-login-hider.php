@@ -40,6 +40,13 @@ class TSSL_Login_Hider {
 		add_filter( 'xmlrpc_enabled', array( $this, 'maybe_disable_xmlrpc' ) );
 		add_action( 'wp_loaded', array( $this, 'maybe_block_xmlrpc_request' ) );
 		add_filter( 'wp_is_application_passwords_available', array( $this, 'maybe_disable_application_passwords' ) );
+
+		// M2 fix: when a visitor lands on the custom login page with a
+		// `?action=lostpassword` style query, forward to wp-login.php so
+		// the standard WP reset flow runs. The slug-based URL keeps
+		// /wp-login.php out of public HTML; the forward only happens on
+		// actual user click-through.
+		add_action( 'template_redirect', array( $this, 'maybe_forward_reset_actions' ) );
 	}
 
 	private function is_active(): bool {
@@ -157,11 +164,71 @@ class TSSL_Login_Hider {
 	}
 
 	public function filter_lostpassword_url( $url, $redirect = '' ): string {
-		unset( $redirect );
+		// When password reset is disabled, send users to the custom login
+		// URL (no reset form exists there — they hit the two-step landing).
 		if ( $this->settings->get( 'disable_password_reset' ) ) {
 			return $this->custom_login_url();
 		}
-		return (string) $url;
+		// Audit finding M2: when only `hide_default_login_urls` is on, the
+		// previous implementation returned the raw /wp-login.php URL —
+		// publishing the existence of wp-login.php in every comment form,
+		// login widget, and theme that calls wp_lostpassword_url(). Rewrite
+		// to a slug-bearing URL with `action=lostpassword`. The actual
+		// reset form lives at wp-login.php; the template_redirect handler
+		// in this class forwards visitors there on click-through so the
+		// reset flow still works for end users.
+		if ( ! $this->is_active() ) {
+			return (string) $url;
+		}
+		$target = $this->custom_login_url();
+		if ( '' !== (string) $redirect ) {
+			$target = add_query_arg( 'redirect_to', rawurlencode( (string) $redirect ), $target );
+		}
+		return add_query_arg( 'action', 'lostpassword', $target );
+	}
+
+	/**
+	 * M2: when a visitor lands on the auto-created login page with a
+	 * password-reset action in the query string, forward them to
+	 * /wp-login.php?action=<...>. The forward is the only place wp-login.php
+	 * appears — public HTML no longer contains it. The action allowlist in
+	 * `allowed_login_action()` permits the forward through `maybe_block_wp_login`
+	 * when password reset is allowed; when reset is disabled the existing
+	 * login-flow handler short-circuits earlier.
+	 */
+	public function maybe_forward_reset_actions(): void {
+		if ( ! $this->is_active() ) {
+			return;
+		}
+		if ( $this->settings->get( 'disable_password_reset' ) ) {
+			return;
+		}
+		$page_id = (int) $this->settings->get( 'login_page_id' );
+		if ( $page_id <= 0 ) {
+			return;
+		}
+		if ( ! is_page( $page_id ) ) {
+			return;
+		}
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only action enum check; the redirect target is host-restricted by allowed_login_action() + filter_wp_redirect().
+		if ( ! isset( $_GET['action'] ) ) {
+			return;
+		}
+		$action = sanitize_text_field( wp_unslash( $_GET['action'] ) );
+		$allowed_reset = array( 'lostpassword', 'retrievepassword', 'resetpass', 'rp' );
+		if ( ! in_array( $action, $allowed_reset, true ) ) {
+			return;
+		}
+		// Build the wp-login.php URL via home_url() so it bypasses our own
+		// `site_url` filter (which rewrites wp-login.php → custom slug).
+		// Then preserve any extra query args (key, login, etc. that are
+		// part of the reset link flow).
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- forwarded verbatim to wp-login.php which performs its own verification.
+		$qs = (array) $_GET;
+		$qs['action'] = $action;
+		$target = add_query_arg( $qs, home_url( '/wp-login.php' ) );
+		wp_safe_redirect( $target );
+		exit;
 	}
 
 	/**

@@ -41,7 +41,13 @@ class TSSL_Settings {
 	 */
 	public function get_defaults(): array {
 		return array(
-			'enable_two_step'            => 1,
+			// `enable_two_step` was removed from the UI in v0.1.15 (audit
+			// finding M1): the toggle was never read by the login flow, so
+			// two-step has always been mandatory in practice. The key is no
+			// longer in get_defaults() and no longer in `bool_keys`, so a
+			// fresh install does not write it to the option. Existing
+			// installs that have it stored at 0 or 1 will simply ignore it
+			// — the login flow continues to run two-step regardless.
 			'disable_password_reset'     => 0,
 			'hide_lost_password'         => 1,
 			'hide_default_login_urls'    => 0,
@@ -279,7 +285,7 @@ class TSSL_Settings {
 		$clean    = array();
 
 		$bool_keys = array(
-			'enable_two_step',
+			// `enable_two_step` removed in v0.1.15 — see comment in get_defaults().
 			'disable_password_reset',
 			'hide_lost_password',
 			'hide_default_login_urls',
@@ -530,7 +536,9 @@ class TSSL_Settings {
 	 * @param string              $login_url Resolved custom login URL.
 	 */
 	private function render_summary_panel( array $opts, string $login_url ): void {
-		$two_step_on    = ! empty( $opts['enable_two_step'] );
+		// Two-step is always on in v0.1.15+; the dashboard reflects the
+		// actual login flow rather than a stored setting.
+		$two_step_on    = true;
 		$hide_urls_on   = ! empty( $opts['hide_default_login_urls'] );
 		$reset_disabled = ! empty( $opts['disable_password_reset'] );
 		$captcha_ready  = $this->captcha_is_configured( $opts );
@@ -788,14 +796,10 @@ class TSSL_Settings {
 			__( 'Core toggles for the two-step flow and login protection.', 'stealth-access' )
 		);
 
-		$this->row_checkbox_flat(
-			$key,
-			'enable_two_step',
-			(bool) $opts['enable_two_step'],
-			__( 'Enable two-step login', 'stealth-access' ),
-			__( 'Users enter username/email first, then password on a second screen. Step 1 always continues to protect against username enumeration.', 'stealth-access' ),
-			__( 'Use the username-then-password flow on the custom login page. Step 1 always continues to Step 2.', 'stealth-access' )
-		);
+		// `enable_two_step` checkbox was removed in v0.1.15 (audit finding M1).
+		// The two-step flow is always on; the removed toggle never actually
+		// disabled it. The General Protection card now leads with the
+		// password-reset controls.
 
 		$reset_warning = '<div class="tssl-callout tssl-callout-warning tssl-callout-warn"><strong>'
 			. esc_html__( 'Lockout warning:', 'stealth-access' ) . '</strong> '

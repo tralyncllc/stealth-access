@@ -24,7 +24,7 @@ function runCli(args: string, stdin?: string): string {
 }
 
 export type TsslSettings = {
-  enable_two_step: 0 | 1;
+  // `enable_two_step` removed in v0.1.15 (audit finding M1).
   disable_password_reset: 0 | 1;
   hide_lost_password: 0 | 1;
   hide_default_login_urls: 0 | 1;
