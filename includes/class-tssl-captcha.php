@@ -31,9 +31,79 @@ class TSSL_Captcha {
 	 */
 	private TSSL_Security $security;
 
+	/**
+	 * Transient key + TTL for the rate-limited "CAPTCHA verification skipped
+	 * due to missing keys" log line. We want admins to be able to spot the
+	 * misconfiguration in error.log without flooding it with one entry per
+	 * login attempt during an attack.
+	 */
+	const MISCONFIG_LOG_TRANSIENT = 'tssl_captcha_misconfig_logged';
+	const MISCONFIG_LOG_TTL       = 60;
+
 	public function __construct( TSSL_Settings $settings, TSSL_Security $security ) {
 		$this->settings = $settings;
 		$this->security = $security;
+	}
+
+	/**
+	 * Wire admin-side hooks. Keeping the constructor side-effect-free means
+	 * the class stays unit-testable; this method is the one entry point that
+	 * touches the WordPress action/filter system.
+	 */
+	public function register(): void {
+		add_action( 'admin_notices', array( $this, 'maybe_render_misconfig_notice' ) );
+		add_action( 'network_admin_notices', array( $this, 'maybe_render_misconfig_notice' ) );
+	}
+
+	/**
+	 * Render a persistent red banner across admin pages when the admin has
+	 * selected a CAPTCHA provider but at least one required key is empty.
+	 * This is the M4 fix: prior to v0.1.14 the only signal was an inline
+	 * placeholder on the login page that admins almost never saw because
+	 * they are already authenticated when they hit it.
+	 */
+	public function maybe_render_misconfig_notice(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+		if ( $this->is_configured() ) {
+			return;
+		}
+		$provider_label = 'cloudflare_turnstile' === $this->provider()
+			? __( 'Cloudflare Turnstile', 'stealth-access' )
+			: __( 'Google reCAPTCHA', 'stealth-access' );
+		$settings_url = admin_url( 'admin.php?page=tssl-settings' );
+		printf(
+			'<div class="notice notice-error"><p><strong>%s</strong> %s <a href="%s">%s</a></p></div>',
+			esc_html__( 'Stealth Access — CAPTCHA is disabled.', 'stealth-access' ),
+			sprintf(
+				/* translators: %s: configured provider name. */
+				esc_html__( 'You selected %s as your CAPTCHA provider but the site key or secret key is missing. Logins are proceeding WITHOUT a CAPTCHA challenge. This is intentional — missing keys never block login — but you should restore the keys.', 'stealth-access' ),
+				esc_html( $provider_label )
+			),
+			esc_url( $settings_url ),
+			esc_html__( 'Open Stealth Access settings →', 'stealth-access' )
+		);
+	}
+
+	/**
+	 * Emit a one-off error_log entry the first time a login attempt slips
+	 * past CAPTCHA due to missing keys. A transient gates re-logging so the
+	 * log can't be flooded under a brute-force attack — one line per minute
+	 * per provider misconfiguration is enough for an admin tailing the log
+	 * to notice.
+	 */
+	private function log_skipped_once(): void {
+		if ( false !== get_transient( self::MISCONFIG_LOG_TRANSIENT ) ) {
+			return;
+		}
+		set_transient( self::MISCONFIG_LOG_TRANSIENT, '1', self::MISCONFIG_LOG_TTL );
+		error_log(
+			sprintf(
+				'Stealth Access: CAPTCHA verification skipped for provider "%s" — site key or secret key is missing. Login proceeded without a CAPTCHA challenge. Restore the keys in Settings → Stealth Access.',
+				$this->provider()
+			)
+		);
 	}
 
 	/**
@@ -100,8 +170,15 @@ class TSSL_Captcha {
 
 	public function is_active_for( string $step ): bool {
 		// CAPTCHA is only active when both keys are saved. Missing keys must
-		// never block login.
+		// never block login. When this short-circuits because keys are
+		// missing — AND the step's normal CAPTCHA location matches — we
+		// emit a rate-limited error_log so the silent fail-open is
+		// auditable post-hoc.
 		if ( ! $this->is_configured() ) {
+			$location = $this->location();
+			if ( 'both' === $location || $location === $step ) {
+				$this->log_skipped_once();
+			}
 			return false;
 		}
 		$location = $this->location();

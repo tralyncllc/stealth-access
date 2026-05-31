@@ -33,7 +33,13 @@ Lightweight, dependency-free WordPress login hardening by **Tralync LLC**: two-s
 
 **Cloudflare Turnstile is the recommended CAPTCHA provider.** Google reCAPTCHA is also supported — kept for compatibility with existing deployments — and now lives behind a single "Google reCAPTCHA" choice with a Mode selector for the underlying flavor (Checkbox Challenge / Score-Based).
 
-CAPTCHA is **disabled until both keys for the selected provider are saved**. While disabled it does not block login: no widget renders on the frontend, no verification runs, and the admin settings page shows a "Selected, not configured" callout under the provider dropdown so you know what state you're in.
+CAPTCHA is **disabled until both the site key and the secret key for the selected provider are saved**. While disabled it does not block login: no widget renders on the front-end, no verification runs, and the admin settings page shows a "Selected, not configured" callout under the provider dropdown so you know what state you're in.
+
+If an admin selects a CAPTCHA provider but at least one key is missing, the plugin now surfaces the misconfiguration **everywhere it can**, so the silent fail-open documented above can never go unnoticed:
+
+- A persistent red banner appears on every wp-admin page (`Stealth Access — CAPTCHA is disabled.`) with a link back to the settings screen.
+- A one-line entry is written to `error.log` the first time a login slips past CAPTCHA due to the missing key, rate-limited via a transient so the log is never flooded under a brute-force attempt (one line per minute is plenty for an admin tailing the log to catch the regression).
+- The login form still works for end users — the documented policy that missing keys must never block login is **unchanged** by this hardening. CAPTCHA loss is a degradation in defence depth, not a denial of service.
 
 Tokens are always verified server-side through `wp_remote_post()`. Secret keys are never rendered verbatim in HTML — once saved, the admin field is shown blank and a **masked fingerprint** of the existing secret is displayed below it so you can recognise which key is currently stored without exposing it:
 

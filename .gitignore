@@ -36,3 +36,4 @@ artifacts/
 
 # Security audit report (local-only)
 Security_Audit.md
+Medium_Findings_Prioritization.md

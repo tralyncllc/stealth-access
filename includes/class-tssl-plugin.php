@@ -69,6 +69,7 @@ class TSSL_Plugin {
 		$this->page_manager->register();
 		$this->login_flow->register();
 		$this->login_hider->register();
+		$this->captcha->register();
 	}
 
 	/**
