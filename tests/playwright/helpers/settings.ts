@@ -63,8 +63,17 @@ export function updateSettings(partial: Partial<TsslSettings>): TsslSettings {
 }
 
 export function restoreSettingsFromSnapshot(): void {
-  const snapshot = fs.readFileSync(SNAPSHOT_PATH, 'utf8').trim();
-  runCli('option update tssl_settings --format=json', snapshot);
+  // The snapshot was captured against the local dev environment, where the
+  // auto-created login page happens to be at a specific post ID. That ID is
+  // meaningless on any other site (a fresh CI WordPress will create the
+  // page at a different ID), and restoring the snapshot's value verbatim
+  // would break every test that relies on the plugin knowing which page
+  // hosts the login portal. Preserve whatever the current install thinks
+  // login_page_id is.
+  const snapshot = JSON.parse(fs.readFileSync(SNAPSHOT_PATH, 'utf8')) as Record<string, unknown>;
+  const current = getSettings() as unknown as Record<string, unknown>;
+  snapshot.login_page_id = current.login_page_id ?? 0;
+  runCli('option update tssl_settings --format=json', JSON.stringify(snapshot));
 }
 
 export function resetUserPassword(login: string, pass: string): void {

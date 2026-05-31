@@ -81,7 +81,10 @@ test.describe('Settings page', () => {
     // Slug should have been reset to the default; an admin notice should appear.
     const stored = getSettings();
     expect(stored.custom_login_slug).toBe('secure-login');
-    await expect(page.locator('.notice')).toContainText(/reserved/i);
+    // Scope to the settings-error notice so we don't collide with the
+    // WordPress core update-available `.notice` that CI's WP install
+    // sometimes shows.
+    await expect(page.locator('.notice.notice-error.settings-error')).toContainText(/reserved/i);
     await shot(page, '22-settings-reserved-slug');
   });
 });

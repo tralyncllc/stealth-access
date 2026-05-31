@@ -102,7 +102,13 @@ test.describe('Security & enumeration', () => {
     const token = cookies.find((c) => c.name === 'tssl_login_token');
     expect(token, 'tssl_login_token cookie must exist after step 1').toBeDefined();
     expect(token!.httpOnly, 'cookie must be HttpOnly').toBe(true);
-    expect(token!.secure, 'cookie must be Secure on HTTPS site').toBe(true);
+    // The Secure flag only attaches on HTTPS. The CI environment runs
+    // WordPress over plain HTTP on localhost, where setting Secure would
+    // prevent the cookie from being delivered at all — so WP correctly
+    // omits it. Only assert Secure when WP_BASE_URL is HTTPS.
+    if (WP_BASE_URL.startsWith('https://')) {
+      expect(token!.secure, 'cookie must be Secure on HTTPS site').toBe(true);
+    }
     expect(token!.sameSite, 'cookie must be SameSite=Lax').toBe('Lax');
   });
 
@@ -112,7 +118,10 @@ test.describe('Security & enumeration', () => {
     const logged = cookies.find((c) => c.name.startsWith('wordpress_logged_in_'));
     expect(logged, 'wordpress_logged_in_* cookie present').toBeDefined();
     expect(logged!.httpOnly).toBe(true);
-    expect(logged!.secure).toBe(true);
+    // See note above: WP only flags wp auth cookies Secure on HTTPS sites.
+    if (WP_BASE_URL.startsWith('https://')) {
+      expect(logged!.secure).toBe(true);
+    }
     await logoutViaAdminBar(page);
   });
 
