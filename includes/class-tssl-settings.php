@@ -45,6 +45,12 @@ class TSSL_Settings {
 			'disable_password_reset'     => 0,
 			'hide_lost_password'         => 1,
 			'hide_default_login_urls'    => 0,
+			// Alternative auth surfaces — default to disabled so the
+			// two-step flow is the only authentication path. Admins who
+			// rely on XML-RPC or Application Passwords for mobile apps or
+			// integrations can opt back in.
+			'disable_xmlrpc'             => 1,
+			'disable_application_passwords' => 1,
 			'custom_login_slug'          => 'secure-login',
 			'auto_create_login_page'     => 1,
 			'hide_login_page_from_lists' => 1,
@@ -277,6 +283,8 @@ class TSSL_Settings {
 			'disable_password_reset',
 			'hide_lost_password',
 			'hide_default_login_urls',
+			'disable_xmlrpc',
+			'disable_application_passwords',
 			'auto_create_login_page',
 			'hide_login_page_from_lists',
 			'enable_login_branding',
@@ -826,6 +834,36 @@ class TSSL_Settings {
 			__( 'Blocks direct access to wp-login.php and unauthenticated wp-admin requests. Keep filesystem access available in case recovery is needed.', 'stealth-access' ),
 			__( 'Block direct access to /wp-login.php and bounce unauthenticated /wp-admin/ requests.', 'stealth-access' ),
 			$hide_warning
+		);
+
+		$xmlrpc_warning = '<div class="tssl-callout tssl-callout-warning tssl-callout-warn"><strong>'
+			. esc_html__( 'Compatibility note:', 'stealth-access' ) . '</strong> '
+			. esc_html__( 'Some mobile apps (Jetpack, the WordPress mobile app, third-party publishing tools) and self-hosted pingback flows use XML-RPC. If you rely on any of those, leave this off.', 'stealth-access' )
+			. '</div>';
+
+		$this->row_checkbox_flat(
+			$key,
+			'disable_xmlrpc',
+			(bool) $opts['disable_xmlrpc'],
+			__( 'Disable XML-RPC', 'stealth-access' ),
+			__( '/xmlrpc.php is a parallel authentication path that bypasses the two-step flow and CAPTCHA. Disabling it closes a common brute-force surface.', 'stealth-access' ),
+			__( 'Block /xmlrpc.php requests and disable the XML-RPC dispatcher.', 'stealth-access' ),
+			$xmlrpc_warning
+		);
+
+		$apppass_warning = '<div class="tssl-callout tssl-callout-warning tssl-callout-warn"><strong>'
+			. esc_html__( 'Compatibility note:', 'stealth-access' ) . '</strong> '
+			. esc_html__( 'Application Passwords are used by mobile apps and some REST API integrations. If a user has already created one, disabling does not delete it — it just stops it from authenticating.', 'stealth-access' )
+			. '</div>';
+
+		$this->row_checkbox_flat(
+			$key,
+			'disable_application_passwords',
+			(bool) $opts['disable_application_passwords'],
+			__( 'Disable Application Passwords', 'stealth-access' ),
+			__( 'Application Passwords are a parallel authentication path that bypasses the two-step flow and CAPTCHA. Disabling them prevents REST API + Basic auth bypasses.', 'stealth-access' ),
+			__( 'Disable site-wide Application Passwords (HTTP Basic auth against the REST API).', 'stealth-access' ),
+			$apppass_warning
 		);
 
 		$this->close_card();

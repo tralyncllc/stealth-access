@@ -32,6 +32,14 @@ class TSSL_Login_Hider {
 		// short-circuit a hidden login.
 		add_action( 'login_init', array( $this, 'maybe_block_wp_login' ) );
 		add_action( 'wp_loaded', array( $this, 'maybe_block_wp_admin' ) );
+
+		// Alternative-auth surfaces. Two-step + CAPTCHA are useless if an
+		// attacker can hit /xmlrpc.php or Application-Password Basic auth
+		// instead. Both default to disabled; admins who need them for mobile
+		// apps or integrations can opt back in.
+		add_filter( 'xmlrpc_enabled', array( $this, 'maybe_disable_xmlrpc' ) );
+		add_action( 'wp_loaded', array( $this, 'maybe_block_xmlrpc_request' ) );
+		add_filter( 'wp_is_application_passwords_available', array( $this, 'maybe_disable_application_passwords' ) );
 	}
 
 	private function is_active(): bool {
@@ -57,7 +65,18 @@ class TSSL_Login_Hider {
 	}
 
 	private function allowed_login_action( string $action ): bool {
-		$always = array( 'logout', 'postpass', 'interim-login' );
+		// Whitelist of wp-login.php actions that stay reachable even when
+		// hide_default_login_urls is on. `interim-login` is deliberately NOT
+		// here: WordPress core wp-login.php (line ~509) coerces any unknown
+		// action value back to the default `login` case, so allowing
+		// `?action=interim-login` would let an attacker render the standard
+		// login form and POST credentials — fully bypassing the two-step
+		// flow. The genuine interim-login flow used by the heartbeat modal
+		// in wp-admin is driven by the `interim-login=1` request parameter
+		// (NOT the `action` value) and reaches wp-login.php from an already
+		// authenticated context, so blocking the action name here does not
+		// break it.
+		$always = array( 'logout', 'postpass' );
 		if ( in_array( $action, $always, true ) ) {
 			return true;
 		}
@@ -143,6 +162,55 @@ class TSSL_Login_Hider {
 			return $this->custom_login_url();
 		}
 		return (string) $url;
+	}
+
+	/**
+	 * `xmlrpc_enabled` filter callback. Disables the XML-RPC dispatcher
+	 * entirely when the corresponding setting is on, so endpoints like
+	 * `wp.getUsersBlogs` reject every request — including the
+	 * authentication path that would otherwise let an attacker brute-force
+	 * credentials around the two-step flow.
+	 *
+	 * @param bool $enabled Whether XML-RPC is currently enabled.
+	 */
+	public function maybe_disable_xmlrpc( $enabled ): bool {
+		if ( $this->settings->get( 'disable_xmlrpc' ) ) {
+			return false;
+		}
+		return (bool) $enabled;
+	}
+
+	/**
+	 * Belt-and-suspenders block for /xmlrpc.php at the request layer.
+	 * `xmlrpc_enabled` only stops the dispatcher; with this hook the entire
+	 * request is short-circuited via the same blocked-behavior path as
+	 * /wp-login.php, so /xmlrpc.php returns a 404 (or the configured
+	 * redirect) and never executes any auth code.
+	 */
+	public function maybe_block_xmlrpc_request(): void {
+		if ( ! $this->settings->get( 'disable_xmlrpc' ) ) {
+			return;
+		}
+		$script = isset( $_SERVER['SCRIPT_NAME'] ) ? basename( (string) wp_unslash( $_SERVER['SCRIPT_NAME'] ) ) : '';
+		if ( 'xmlrpc.php' !== $script ) {
+			return;
+		}
+		$this->apply_blocked_behavior();
+	}
+
+	/**
+	 * `wp_is_application_passwords_available` filter callback. Disables
+	 * Application Passwords site-wide when the setting is on so the REST
+	 * API and other Basic-auth-capable endpoints stop accepting them,
+	 * eliminating a parallel-auth surface that bypasses the two-step flow.
+	 *
+	 * @param bool $available Whether Application Passwords are available.
+	 */
+	public function maybe_disable_application_passwords( $available ): bool {
+		if ( $this->settings->get( 'disable_application_passwords' ) ) {
+			return false;
+		}
+		return (bool) $available;
 	}
 
 	private function rewrite_login_url( string $url ): string {

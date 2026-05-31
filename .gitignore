@@ -33,3 +33,6 @@ artifacts/
 *.zip
 *.tar
 *.tar.gz
+
+# Security audit report (local-only)
+Security_Audit.md

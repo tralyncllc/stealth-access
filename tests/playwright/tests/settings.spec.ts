@@ -268,10 +268,14 @@ test.describe('Settings UI — cards + summary panel', () => {
     await expect(btn).toHaveText(/copied/i);
   });
 
-  test('warning callouts appear for the two risky options', async ({ page }) => {
+  test('warning callouts appear for the risky options in General Protection', async ({ page }) => {
     await page.goto('/wp-admin/options-general.php?page=tssl-settings');
     const warns = page.locator('#tssl-card-general .tssl-callout-warn');
-    await expect(warns).toHaveCount(2); // disable-reset + hide-default-urls
+    // disable_password_reset, hide_default_login_urls, disable_xmlrpc,
+    // disable_application_passwords — four toggles that ship with a
+    // compatibility/lockout callout. (v0.1.13 added the two
+    // alternative-auth surfaces; v0.1.12 had only the first two.)
+    await expect(warns).toHaveCount(4);
   });
 
   test('major settings carry info-icon tooltips with aria-label', async ({ page }) => {

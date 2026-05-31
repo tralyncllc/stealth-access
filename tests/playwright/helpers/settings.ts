@@ -28,6 +28,8 @@ export type TsslSettings = {
   disable_password_reset: 0 | 1;
   hide_lost_password: 0 | 1;
   hide_default_login_urls: 0 | 1;
+  disable_xmlrpc: 0 | 1;
+  disable_application_passwords: 0 | 1;
   custom_login_slug: string;
   auto_create_login_page: 0 | 1;
   hide_login_page_from_lists: 0 | 1;
