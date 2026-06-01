@@ -23,6 +23,50 @@ Lightweight, dependency-free WordPress login hardening by **Tralync LLC**: two-s
 - Safe redirects via `wp_validate_redirect()` and `wp_safe_redirect()`.
 - Card-based admin settings page with a status summary panel and a copy-to-clipboard button for the login URL.
 
+## Screenshots
+
+Captures taken at 1280×800 from the same Playwright spec
+(`tests/playwright/tests/capture-wordpress-org-screenshots.spec.ts`) that
+generates the wordpress.org listing assets. The same files are published in
+the plugin directory under `== Screenshots ==` in `readme.txt`.
+
+### 1. Secure-login portal (Step 1)
+
+The two-step form a real visitor sees in place of `/wp-login.php`.
+
+![Secure-login portal (Step 1)](.wordpress-org/screenshot-1.png)
+
+### 2. Stealth Access dashboard
+
+Status summary panel, copy-to-clipboard login URL, four feature status
+badges, and the persistent CAPTCHA-misconfig banner that surfaces when
+keys are missing.
+
+![Stealth Access dashboard](.wordpress-org/screenshot-2.png)
+
+### 3. Settings — General Protection
+
+Password-reset, hide-default-login-URLs, disable-XML-RPC, and
+disable-Application-Passwords toggles, each with a Lockout/Compatibility
+callout.
+
+![Settings — General Protection card](.wordpress-org/screenshot-3.png)
+
+### 4. Settings — CAPTCHA Protection
+
+Provider selector, the "Configured" status callout, and the
+masked-fingerprint secret-key UI that never renders the saved secret in
+HTML.
+
+![Settings — CAPTCHA Protection card](.wordpress-org/screenshot-4.png)
+
+### 5. Hidden-login protection enabled
+
+The "Hidden Login URLs" status badge flips to **Enabled** and
+`/wp-login.php` is no longer publicly reachable.
+
+![Hidden-login protection enabled](.wordpress-org/screenshot-5.png)
+
 ## Threat model
 
 Stealth Access is a login-hardening plugin. It raises the cost of common attacks and closes specific bypass surfaces that WordPress core leaves open by default. It is **not** a substitute for a WAF, a rate-limiting plugin, or competent hosting. The boundaries below are intentional and audited — knowing them is part of running the plugin correctly.
