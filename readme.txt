@@ -4,7 +4,7 @@ Tags: login, security, two-factor, captcha, hardening
 Requires at least: 6.8
 Tested up to: 7.0
 Requires PHP: 8.1
-Stable tag: 1.0.0
+Stable tag: 1.0.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -84,6 +84,18 @@ Secret keys are never rendered verbatim in HTML. The admin field is blank after 
 
 == Changelog ==
 
+= 1.0.1 =
+
+Patch release. Login portal styling is now isolated from the active theme.
+
+* **Login portal CSS isolation.** Every portal rule is now scoped under `body.tssl-portal-body .tssl-card`, so the secure-login page renders identically regardless of the active theme.
+* **Theme CSS override protection.** The portal stylesheet is enqueued after the theme's stylesheet in the `<head>` source order, and brand-critical properties are locked so aggressive theme rules (including `!important`) can no longer win the cascade.
+* **Typography consistency.** The portal title and body text always render in the intended Stealth Access font stack — block-theme heading/body font presets no longer leak in.
+* **Button styling consistency.** The Continue button stays Stealth Access blue with the intended shape and casing, even under themes that repaint `button` / `.wp-element-button`.
+* **Input styling consistency.** Login fields keep their white background, border, and radius regardless of theme form styling.
+
+No functional, authentication, or CAPTCHA behavior changed. CAPTCHA provider widgets are untouched.
+
 = 1.0.0 =
 
 First public release.
@@ -98,6 +110,10 @@ The work for v1.0.0 was driven by an internal multi-agent security audit (81 fin
 Combined regression coverage: 124 Playwright tests covering blocking, admin-management, opt-out, and behavioural-regression paths for every closed finding.
 
 == Upgrade Notice ==
+
+= 1.0.1 =
+
+Styling-only patch. The secure-login portal is now isolated from theme CSS so it renders consistently across themes. No functional, authentication, or CAPTCHA changes. Safe drop-in upgrade.
 
 = 1.0.0 =
 

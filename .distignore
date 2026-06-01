@@ -40,6 +40,7 @@ Medium_Findings_Prioritization.md
 Release_Readiness_Report.md
 Release_Preparation_Report.md
 Release_Package_Report.md
+Login_Portal_CSS_Hardening_Report.md
 
 # Build / test output
 playwright-report

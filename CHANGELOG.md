@@ -8,6 +8,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 A condensed version of this log lives in `readme.txt` for the wordpress.org
 plugin directory; this file is the canonical record for the GitHub repo.
 
+## [1.0.1] - 2026-06-01
+
+Patch release. The login portal's styling is now isolated from the active
+theme so the secure-login page renders consistently across themes. This
+ships the CSS hardening work completed after the v1.0.0 tag. No functional,
+authentication, or CAPTCHA behavior changed.
+
+### Fixed
+- **Login portal CSS isolation.** Every portal rule in `assets/css/login.css`
+  is now scoped under `body.tssl-portal-body .tssl-card` (specificity (0,3,1)),
+  so portal styles no longer collide with theme rules on the secure-login page.
+- **Theme CSS override issues.** `maybe_preload_login_assets` enqueues the
+  portal stylesheet at `wp_enqueue_scripts` priority 999 so its `<link>` lands
+  after the theme's stylesheet in `<head>` source order; brand-critical
+  properties are marked `!important` so theme rules using `!important`
+  themselves can no longer win the cascade.
+- **Typography consistency.** The portal title, subtitle, labels, and body
+  text pin `font-family` explicitly, so block-theme heading/body font presets
+  (e.g. a serif `--wp--preset--font-family--heading`) no longer override the
+  intended Stealth Access system font stack via direct tag selectors.
+- **Button color consistency.** The Continue button stays Stealth Access blue
+  (`#2563eb`) with the intended border-radius and no forced uppercase, even
+  under themes that repaint `button` / `.wp-element-button` / `.wp-block-button__link`.
+- **Input field styling consistency.** Login inputs keep their white
+  background, border, and 10px radius regardless of theme form styling.
+
+### Changed
+- Bumped plugin version to **1.0.1** in `stealth-access.php`, `TSSL_VERSION`,
+  and `readme.txt`. The `TSSL_VERSION` bump also busts the `?ver=` cache on
+  `login.css` / `admin.css` so visitors pick up the hardened stylesheet
+  immediately.
+
+### Notes
+- The CAPTCHA host (`.tssl-captcha`) is deliberately scoped to layout-only
+  rules; no font/color resets cascade toward the provider iframe, so
+  Cloudflare Turnstile / Google reCAPTCHA widgets are unchanged.
+- Regression coverage: new `tests/playwright/tests/portal-css-hardening.spec.ts`
+  injects synthetic hostile theme CSS and asserts the brand contract holds.
+
 ## [1.0.0] - 2026-06-01
 
 First public release. The work for v1.0.0 was driven by an internal
@@ -116,6 +155,7 @@ in-repo (local-only) for full per-finding writeups.
 
 Pre-release iteration in a private repo. No public install advised.
 
+[1.0.1]: https://github.com/tralyncllc/stealth-access/releases/tag/v1.0.1
 [1.0.0]: https://github.com/tralyncllc/stealth-access/releases/tag/v1.0.0
 [0.1.15]: https://github.com/tralyncllc/stealth-access/commit/6c4a554
 [0.1.14]: https://github.com/tralyncllc/stealth-access/commit/a9512a1
