@@ -28,6 +28,19 @@ composer.lock
 # Source / authoring assets (the runtime icons under assets/img/ are shipped)
 Stealth_Access_Logo.png
 
+# WordPress.org listing assets — these live in the SVN /assets/ directory
+# (handled separately by 10up/action-wordpress-plugin-deploy) and must NOT
+# ship inside the installable plugin folder.
+.wordpress-org
+
+# Local-only audit + release docs (gitignored, but exclude defensively in
+# case anyone runs a dist build with these in the working tree).
+Security_Audit.md
+Medium_Findings_Prioritization.md
+Release_Readiness_Report.md
+Release_Preparation_Report.md
+Release_Package_Report.md
+
 # Build / test output
 playwright-report
 playwright-results
