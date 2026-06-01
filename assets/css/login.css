@@ -1,32 +1,84 @@
-/* Secure Login Shield — portal-style login page.
+/*
+ * Stealth Access — portal-style login page.
  *
- * All rules are scoped under `.tssl-portal-body` (the <body> class set by the
- * plugin's login-template) or under `.tssl-card` so this stylesheet has no
- * effect on any other WordPress page when the shortcode is reused outside the
- * dedicated template.
+ * The portal template (includes/views/login-template.php) bypasses the
+ * active theme's header / footer / sidebar, but `wp_head()` still emits:
+ *   * `wp-block-library-inline-css`
+ *   * `global-styles-inline-css`   (block themes — `body`, `h1`, button
+ *                                   presets via `--wp--preset--*` vars)
+ *   * the active theme's own `style.css` / inline style block
+ *   * any plugin that hooks `wp_enqueue_scripts`
+ *
+ * Each of those can override our portal styles on the cascade, via three
+ * mechanisms we have to defend against:
+ *
+ *   1. Direct tag selectors. Theme rules like `h1 { font-family: serif }`
+ *      *win against inheritance* from `.tssl-portal-body`, regardless of
+ *      source order — because direct selection beats inherited values.
+ *   2. Source-order ties. Themes that load AFTER us (the default on most
+ *      WordPress installs — theme inline-style emits after plugin
+ *      <link>s) win ties at equal specificity.
+ *   3. `!important` rules. A theme rule with `!important` always wins
+ *      against a non-important rule, regardless of specificity.
+ *
+ * We defend with three corresponding layers:
+ *
+ *   1. **Scope every rule under `body.tssl-portal-body`** (specificity
+ *      (0,1,1)) so we beat bare-tag theme selectors and single-class
+ *      block-theme selectors.
+ *   2. **Set `font-family` explicitly on every text-rendering element**
+ *      so theme tag selectors can't catch us via direct selection.
+ *   3. **Mark brand-critical properties as `!important`** (button bg /
+ *      color / font, input bg / font, title font / color, link color)
+ *      so theme rules that use `!important` themselves can't win.
+ *
+ * Layout-only properties (gap, margin, padding, display, transition)
+ * are NOT marked `!important` — they degrade gracefully if a theme
+ * pushes our card around, and leaving them open keeps the surface
+ * area for theme conflicts minimal.
+ *
+ * NOTE: rules deliberately do NOT cascade into `.tssl-captcha`. The
+ * CAPTCHA provider (Cloudflare Turnstile / Google reCAPTCHA) renders
+ * its widget inside an isolated iframe — our CSS has no effect on the
+ * iframe content, and we explicitly avoid font / color resets on the
+ * `.tssl-captcha` host so we never accidentally re-flow the widget.
  */
+
+:root {
+	--tssl-font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+	--tssl-brand: #2563eb;
+	--tssl-brand-hover: #1d4ed8;
+	--tssl-text: #1e293b;
+	--tssl-text-strong: #0f172a;
+	--tssl-text-muted: #64748b;
+	--tssl-text-soft: #94a3b8;
+	--tssl-border: #cbd5e1;
+	--tssl-border-soft: #e2e8f0;
+	--tssl-card-bg: #ffffff;
+	--tssl-bg-from: #f8fafc;
+	--tssl-bg-to: #eef2f7;
+}
 
 /* ---------- Body + page background --------------------------------- */
 
-.tssl-portal-body {
-	margin: 0;
-	padding: 0;
+body.tssl-portal-body {
+	margin: 0 !important;
+	padding: 0 !important;
 	min-height: 100vh;
-	background: linear-gradient(135deg, #f8fafc 0%, #eef2f7 100%);
+	background: linear-gradient(135deg, var(--tssl-bg-from) 0%, var(--tssl-bg-to) 100%) !important;
 	background-attachment: fixed;
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-	color: #1e293b;
+	font-family: var(--tssl-font-stack) !important;
+	font-size: 16px;
+	color: var(--tssl-text) !important;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 }
 
-/* Plug a couple of common theme inline-style leaks. */
-.tssl-portal-body.wp-singular {
-	background: linear-gradient(135deg, #f8fafc 0%, #eef2f7 100%);
+body.tssl-portal-body.wp-singular {
+	background: linear-gradient(135deg, var(--tssl-bg-from) 0%, var(--tssl-bg-to) 100%) !important;
 }
 
-/* Wrapper added by the plugin's template. */
-.tssl-portal {
+body.tssl-portal-body .tssl-portal {
 	min-height: 100vh;
 	display: flex;
 	align-items: center;
@@ -37,254 +89,308 @@
 
 /* ---------- The card ----------------------------------------------- */
 
-.tssl-card {
+body.tssl-portal-body .tssl-card {
 	width: 100%;
 	max-width: 480px;
-	background: #fff;
+	background: var(--tssl-card-bg) !important;
+	background-color: var(--tssl-card-bg) !important;
 	border-radius: 20px;
 	box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.04);
 	padding: 44px 44px 32px;
 	box-sizing: border-box;
+	color: var(--tssl-text) !important;
+	font-family: var(--tssl-font-stack) !important;
 }
 
 @media (max-width: 640px) {
-	.tssl-card {
+	body.tssl-portal-body .tssl-card {
 		padding: 30px 22px 22px;
 		border-radius: 16px;
 	}
-	.tssl-portal { padding: 16px 12px; }
+	body.tssl-portal-body .tssl-portal { padding: 16px 12px; }
 }
 
 /* ---------- Header (brand + title + subtitle) ---------------------- */
 
-.tssl-card-head {
+body.tssl-portal-body .tssl-card .tssl-card-head {
 	text-align: center;
 	margin-bottom: 28px;
 }
 
-.tssl-brand {
+body.tssl-portal-body .tssl-card .tssl-brand {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	margin-bottom: 18px;
 }
 
-.tssl-brand-default {
+body.tssl-portal-body .tssl-card .tssl-brand-default {
 	width: 72px;
 	height: 72px;
 }
 
-.tssl-brand-default .tssl-default-logo {
+body.tssl-portal-body .tssl-card .tssl-brand-default .tssl-default-logo {
 	display: block;
 	width: 72px;
 	height: 72px;
 	object-fit: contain;
 }
 
-.tssl-brand-custom {
+body.tssl-portal-body .tssl-card .tssl-brand-custom {
 	max-width: 100%;
 }
 
-.tssl-brand-custom .tssl-brand-logo,
-.tssl-brand-custom img {
+body.tssl-portal-body .tssl-card .tssl-brand-custom .tssl-brand-logo,
+body.tssl-portal-body .tssl-card .tssl-brand-custom img {
 	display: block;
 	max-width: 100%;
 	height: auto;
 }
 
-.tssl-portal-title {
-	font-size: 26px;
-	font-weight: 700;
-	color: #0f172a;
-	margin: 0 0 6px;
-	line-height: 1.2;
-	letter-spacing: -0.01em;
+body.tssl-portal-body .tssl-card .tssl-portal-title {
+	font-family: var(--tssl-font-stack) !important;
+	font-size: 26px !important;
+	font-weight: 700 !important;
+	color: var(--tssl-text-strong) !important;
+	margin: 0 0 6px !important;
+	line-height: 1.2 !important;
+	letter-spacing: -0.01em !important;
+	text-transform: none !important;
+	text-align: center !important;
+	text-shadow: none !important;
 }
 
-.tssl-portal-subtitle {
-	font-size: 14.5px;
-	color: #64748b;
-	margin: 0;
-	line-height: 1.55;
+body.tssl-portal-body .tssl-card .tssl-portal-subtitle {
+	font-family: var(--tssl-font-stack) !important;
+	font-size: 14.5px !important;
+	font-weight: 400 !important;
+	color: var(--tssl-text-muted) !important;
+	margin: 0 !important;
+	line-height: 1.55 !important;
+	text-transform: none !important;
+	text-align: center !important;
 }
 
 /* ---------- Card body (form, error, captcha) ----------------------- */
 
-.tssl-card-body {
+body.tssl-portal-body .tssl-card .tssl-card-body {
 	margin-bottom: 18px;
 }
 
-.tssl-message {
+body.tssl-portal-body .tssl-card .tssl-message {
 	padding: 11px 14px;
 	border-radius: 10px;
-	font-size: 13.5px;
-	line-height: 1.5;
+	font-family: var(--tssl-font-stack) !important;
+	font-size: 13.5px !important;
+	line-height: 1.5 !important;
 	margin-bottom: 14px;
 }
 
-.tssl-message.tssl-error,
-.tssl-error {
-	background: #fef2f2;
-	color: #991b1b;
-	border: 1px solid #fecaca;
+body.tssl-portal-body .tssl-card .tssl-message.tssl-error,
+body.tssl-portal-body .tssl-card .tssl-error {
+	background: #fef2f2 !important;
+	background-color: #fef2f2 !important;
+	color: #991b1b !important;
+	border: 1px solid #fecaca !important;
 }
 
 /* ---------- Form fields -------------------------------------------- */
 
-.tssl-login-form {
+body.tssl-portal-body .tssl-card .tssl-login-form {
 	display: flex;
 	flex-direction: column;
 	gap: 16px;
 	margin: 0;
 }
 
-.tssl-field {
+body.tssl-portal-body .tssl-card .tssl-field {
 	display: flex;
 	flex-direction: column;
 	gap: 7px;
 }
 
-.tssl-label {
-	font-size: 13.5px;
-	font-weight: 600;
-	color: #1e293b;
-	letter-spacing: 0.005em;
+body.tssl-portal-body .tssl-card .tssl-label {
+	font-family: var(--tssl-font-stack) !important;
+	font-size: 13.5px !important;
+	font-weight: 600 !important;
+	color: var(--tssl-text) !important;
+	letter-spacing: 0.005em !important;
+	text-transform: none !important;
 }
 
-.tssl-input {
-	width: 100%;
-	padding: 12px 14px;
-	border: 1px solid #cbd5e1;
-	border-radius: 10px;
-	font-size: 15px;
-	font-family: inherit;
-	color: #0f172a;
-	background: #fff;
-	box-sizing: border-box;
+body.tssl-portal-body .tssl-card .tssl-input {
+	width: 100% !important;
+	padding: 12px 14px !important;
+	border: 1px solid var(--tssl-border) !important;
+	border-radius: 10px !important;
+	font-family: var(--tssl-font-stack) !important;
+	font-size: 15px !important;
+	color: var(--tssl-text-strong) !important;
+	background: var(--tssl-card-bg) !important;
+	background-color: var(--tssl-card-bg) !important;
+	box-sizing: border-box !important;
 	transition: border-color 150ms ease, box-shadow 150ms ease;
 	-webkit-appearance: none;
 	appearance: none;
+	text-transform: none !important;
+	letter-spacing: normal !important;
+	min-height: 0 !important;
+	height: auto !important;
+	box-shadow: none !important;
 }
 
-.tssl-input::placeholder {
-	color: #94a3b8;
+body.tssl-portal-body .tssl-card .tssl-input::placeholder {
+	color: var(--tssl-text-soft) !important;
+	opacity: 1;
+	font-family: var(--tssl-font-stack) !important;
 }
 
-.tssl-input:focus {
-	outline: none;
-	border-color: #2563eb;
-	box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14);
+body.tssl-portal-body .tssl-card .tssl-input:focus {
+	outline: none !important;
+	border-color: var(--tssl-brand) !important;
+	box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14) !important;
 }
 
 /* ---------- Primary button ----------------------------------------- */
 
-.tssl-button {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
+body.tssl-portal-body .tssl-card .tssl-button {
+	display: inline-flex !important;
+	align-items: center !important;
+	justify-content: center !important;
 	gap: 8px;
-	width: 100%;
-	padding: 13px 20px;
-	background: #2563eb;
-	color: #fff;
-	border: 0;
-	border-radius: 12px;
-	font-size: 15px;
-	font-weight: 600;
-	cursor: pointer;
-	font-family: inherit;
+	width: 100% !important;
+	padding: 13px 20px !important;
+	background: var(--tssl-brand) !important;
+	background-color: var(--tssl-brand) !important;
+	background-image: none !important;
+	color: #ffffff !important;
+	border: 0 !important;
+	border-radius: 12px !important;
+	font-family: var(--tssl-font-stack) !important;
+	font-size: 15px !important;
+	font-weight: 600 !important;
+	line-height: 1.2 !important;
+	cursor: pointer !important;
 	margin-top: 4px;
 	transition: background-color 140ms ease, transform 90ms ease, box-shadow 140ms ease;
-	box-shadow: 0 6px 16px rgba(37, 99, 235, 0.22);
+	box-shadow: 0 6px 16px rgba(37, 99, 235, 0.22) !important;
+	text-transform: none !important;
+	text-decoration: none !important;
+	letter-spacing: normal !important;
+	min-height: 0 !important;
+	height: auto !important;
+	-webkit-appearance: none;
+	appearance: none;
 }
 
-.tssl-button:hover {
-	background: #1d4ed8;
+body.tssl-portal-body .tssl-card .tssl-button:hover {
+	background: var(--tssl-brand-hover) !important;
+	background-color: var(--tssl-brand-hover) !important;
+	color: #ffffff !important;
 }
 
-.tssl-button:focus-visible {
-	outline: 2px solid #1d4ed8;
+body.tssl-portal-body .tssl-card .tssl-button:focus-visible {
+	outline: 2px solid var(--tssl-brand-hover) !important;
 	outline-offset: 3px;
 }
 
-.tssl-button:active {
+body.tssl-portal-body .tssl-card .tssl-button:active {
 	transform: translateY(1px);
-	box-shadow: 0 3px 8px rgba(37, 99, 235, 0.22);
+	box-shadow: 0 3px 8px rgba(37, 99, 235, 0.22) !important;
 }
 
-.tssl-button .tssl-arrow {
+body.tssl-portal-body .tssl-card .tssl-button .tssl-arrow {
 	width: 16px;
 	height: 16px;
 	flex-shrink: 0;
 	display: block;
+	color: inherit;
 }
 
 /* ---------- Restart form (step 2 only) ----------------------------- */
 
-.tssl-restart-form {
+body.tssl-portal-body .tssl-card .tssl-restart-form {
 	margin: 12px 0 0;
 	text-align: center;
 }
 
-.tssl-restart-form .tssl-link {
-	background: none;
-	border: 0;
-	padding: 4px 6px;
-	color: #64748b;
-	font-family: inherit;
-	font-size: 13px;
-	cursor: pointer;
-	text-decoration: underline;
+body.tssl-portal-body .tssl-card .tssl-restart-form .tssl-link {
+	background: none !important;
+	background-color: transparent !important;
+	background-image: none !important;
+	border: 0 !important;
+	border-radius: 0 !important;
+	padding: 4px 6px !important;
+	color: var(--tssl-text-muted) !important;
+	font-family: var(--tssl-font-stack) !important;
+	font-size: 13px !important;
+	font-weight: 400 !important;
+	cursor: pointer !important;
+	text-decoration: underline !important;
+	text-transform: none !important;
+	box-shadow: none !important;
+	min-height: 0 !important;
+	height: auto !important;
 }
 
-.tssl-restart-form .tssl-link:hover {
-	color: #2563eb;
+body.tssl-portal-body .tssl-card .tssl-restart-form .tssl-link:hover {
+	color: var(--tssl-brand) !important;
+	background: none !important;
+	background-color: transparent !important;
 }
 
 /* ---------- Footer (Protected by Stealth Access) ------------------- */
 
-.tssl-card-footer {
+body.tssl-portal-body .tssl-card .tssl-card-footer {
 	text-align: center;
 	margin-top: 22px;
 	padding-top: 18px;
-	border-top: 1px solid #e2e8f0;
-	color: #94a3b8;
-	font-size: 11.5px;
-	letter-spacing: 0.02em;
+	border-top: 1px solid var(--tssl-border-soft);
+	color: var(--tssl-text-soft) !important;
+	font-family: var(--tssl-font-stack) !important;
+	font-size: 11.5px !important;
+	letter-spacing: 0.02em !important;
+	text-transform: none !important;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	gap: 6px;
 }
 
-.tssl-shield-mini {
+body.tssl-portal-body .tssl-card .tssl-shield-mini {
 	width: 14px;
 	height: 14px;
-	color: #94a3b8;
+	color: var(--tssl-text-soft);
 	display: block;
 }
 
-/* ---------- CAPTCHA host slot -------------------------------------- */
+/* ---------- CAPTCHA host slot --------------------------------------
+ * The .tssl-captcha host is the wrapper for a provider-controlled
+ * iframe. We scope ONLY layout (display + margin) here and do NOT
+ * cascade typography / color resets, so the iframe's internal styling
+ * remains fully under the provider's control. */
 
-.tssl-captcha {
+body.tssl-portal-body .tssl-card .tssl-captcha {
 	display: flex;
 	justify-content: center;
 	margin: 4px 0;
 }
 
-.tssl-captcha-note {
-	font-size: 11.5px;
-	color: #94a3b8;
+body.tssl-portal-body .tssl-card .tssl-captcha-note {
+	font-family: var(--tssl-font-stack) !important;
+	font-size: 11.5px !important;
+	color: var(--tssl-text-soft) !important;
 	margin: 8px 0 0;
 	text-align: center;
 }
 
 /* ---------- "Already signed in" state ------------------------------ */
 
-.tssl-already-in {
+body.tssl-portal-body .tssl-card .tssl-already-in {
 	text-align: center;
-	color: #475569;
+	color: #475569 !important;
 	margin: 0;
-	font-size: 15px;
+	font-family: var(--tssl-font-stack) !important;
+	font-size: 15px !important;
 	line-height: 1.5;
 }

@@ -40,6 +40,8 @@ Medium_Findings_Prioritization.md
 Release_Readiness_Report.md
 Release_Preparation_Report.md
 Release_Package_Report.md
+Login_Portal_CSS_Hardening_Report.md
 
-# Build artifacts from dist-zip generation
+# Build artifacts from dist-zip generation, plus portal-hardening
+# screenshot captures (regenerated on demand by the regression spec).
 artifacts/

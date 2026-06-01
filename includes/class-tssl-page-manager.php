@@ -49,7 +49,14 @@ class TSSL_Page_Manager {
 		// Pre-enqueue login.css in `wp_enqueue_scripts` so it lands in <head>
 		// (the shortcode render runs during `the_content()`, which is after
 		// `wp_head()` has already been printed).
-		add_action( 'wp_enqueue_scripts', array( $this, 'maybe_preload_login_assets' ) );
+		//
+		// Priority 999 (vs the WordPress default 10) so our handle is added
+		// to `WP_Styles::$queue` AFTER the active theme's `style.css` — the
+		// resulting <link> tag is printed last in <head>, which means our
+		// rules win source-order ties on the cascade. See
+		// `Login_Portal_CSS_Hardening_Report.md` for the override audit
+		// this guards against.
+		add_action( 'wp_enqueue_scripts', array( $this, 'maybe_preload_login_assets' ), 999 );
 
 		// Make sure `body_class` carries the portal class even when the
 		// template-include runs via WordPress's normal singular flow.
