@@ -8,6 +8,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 A condensed version of this log lives in `readme.txt` for the wordpress.org
 plugin directory; this file is the canonical record for the GitHub repo.
 
+## [1.0.3] - 2026-06-02
+
+Patch release. Fixes the custom login URL on sites using PATHINFO permalinks
+(`/index.php/%postname%/`), where the page lives behind an `/index.php/`
+prefix the plugin was dropping. No functional, authentication, or CAPTCHA
+behavior changed.
+
+### Fixed
+- **Custom login URL ignored the permalink structure.** The plugin built
+  the login URL as `home_url( '/' . $slug . '/' )`, which 404s on PATHINFO
+  permalink setups because the page actually resolves at
+  `/index.php/$slug/`. Every place the URL is displayed, copied, opened, or
+  redirected to now derives it from `get_permalink( login_page_id )`:
+  - new `TSSL_Settings::get_login_url()` — `get_permalink()` of the tracked,
+    published login page, with the slug-based URL as a fallback only when no
+    valid page is tracked;
+  - dashboard Login URL, Settings page "Resolves to", the Copy URL button
+    input, and the Open Login Page button (all flow from the same value);
+  - `TSSL_Login_Hider::custom_login_url()` (wp-login redirects, the
+    `login_url` / `site_url` rewrites, and the lost-password URL) now uses
+    the same permalink-aware helper.
+  - (`TSSL_Login_Flow` already used `get_permalink()` for its post-login
+    and lost-password redirects.)
+
+### Changed
+- **Duplicate-page reconciliation.** When the tracked page's slug differs
+  from the configured slug, the reconcile now prefers adopting a *different*
+  page that already owns the configured slug and carries the
+  `[two_step_secure_login]` shortcode — switching `login_page_id` off a
+  `-2` duplicate instead of fighting `wp_unique_post_slug`. Duplicates are
+  never deleted; they are simply no longer tracked.
+
+### Tests
+- New `tests/playwright/tests/permalink-pathinfo.spec.ts` (2 tests): under a
+  `/index.php/%postname%/` permalink structure, the displayed Login URL and
+  the Open Login Page button both include `/index.php/`, that URL returns
+  200 and renders the portal, and the bare (non-`/index.php/`) URL is not
+  advertised.
+
+### Unchanged
+- Hidden-login REST (M5) / sitemap (M6) / search (M7) protections.
+- The self-heal reconcile from 1.0.2 and the CSS hardening from 1.0.1.
+- Authentication and CAPTCHA behavior.
+
 ## [1.0.2] - 2026-06-02
 
 Patch release. Fixes a fresh-install bug where the configured custom login
@@ -201,6 +245,7 @@ in-repo (local-only) for full per-finding writeups.
 
 Pre-release iteration in a private repo. No public install advised.
 
+[1.0.3]: https://github.com/tralyncllc/stealth-access/releases/tag/v1.0.3
 [1.0.2]: https://github.com/tralyncllc/stealth-access/releases/tag/v1.0.2
 [1.0.1]: https://github.com/tralyncllc/stealth-access/releases/tag/v1.0.1
 [1.0.0]: https://github.com/tralyncllc/stealth-access/releases/tag/v1.0.0

@@ -4,7 +4,7 @@ Tags: login, security, two-factor, captcha, hardening
 Requires at least: 6.8
 Tested up to: 7.0
 Requires PHP: 8.1
-Stable tag: 1.0.2
+Stable tag: 1.0.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -84,6 +84,15 @@ Secret keys are never rendered verbatim in HTML. The admin field is blank after 
 
 == Changelog ==
 
+= 1.0.3 =
+
+Patch release. Fixes the custom login URL on sites with "PATHINFO" permalinks.
+
+* **Custom login URL now respects the permalink structure.** On sites whose permalinks include `/index.php/` (e.g. `/index.php/%postname%/`, common on hosts without clean-URL rewriting), the login page lives at `/index.php/your-slug/`. The plugin previously advertised and linked to `/your-slug/`, which 404s on those sites. Everywhere the plugin shows, copies, opens, or redirects to the login URL — the dashboard Login URL, the Settings page, the Copy URL button, the Open Login Page button, and the wp-login redirects — it now derives the URL from the page's real permalink. The slug-based URL is used only as a fallback when no login page is tracked yet.
+* **Better duplicate-page handling.** If a page already sits at the configured slug and contains the `[two_step_secure_login]` shortcode, the plugin adopts it instead of tracking a `-2` duplicate, and switches tracking off a duplicate back to the configured-slug page. Duplicates are never deleted automatically — they are simply no longer tracked.
+
+No functional, authentication, or CAPTCHA behavior changed.
+
 = 1.0.2 =
 
 Patch release. Fixes a fresh-install bug where a custom login slug could 404.
@@ -119,6 +128,10 @@ The work for v1.0.0 was driven by an internal multi-agent security audit (81 fin
 Combined regression coverage: 124 Playwright tests covering blocking, admin-management, opt-out, and behavioural-regression paths for every closed finding.
 
 == Upgrade Notice ==
+
+= 1.0.3 =
+
+Bug-fix patch. Fixes the custom login URL 404 on sites with /index.php/ (PATHINFO) permalinks by deriving the URL from the page permalink. No functional, authentication, or CAPTCHA changes. Safe drop-in upgrade.
 
 = 1.0.2 =
 

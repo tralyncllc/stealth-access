@@ -142,6 +142,39 @@ class TSSL_Settings {
 		return array_key_exists( $key, $all ) ? $all[ $key ] : $default;
 	}
 
+	/**
+	 * Canonical public URL of the login portal.
+	 *
+	 * Prefers `get_permalink()` of the tracked login page so the URL always
+	 * honours the site's permalink structure. This matters on PATHINFO
+	 * permalink setups (e.g. `/index.php/%postname%/`, common on hosts
+	 * without clean-URL rewriting) where a hand-built
+	 * `home_url( '/' . $slug . '/' )` drops the `/index.php/` prefix and the
+	 * resulting URL 404s even though the page exists.
+	 *
+	 * Falls back to the slug-based URL ONLY when no valid, published login
+	 * page is tracked (e.g. before the page has been created).
+	 *
+	 * @return string
+	 */
+	public function get_login_url(): string {
+		$page_id = (int) $this->get( 'login_page_id' );
+		if ( $page_id > 0 ) {
+			$page = get_post( $page_id );
+			if ( $page instanceof WP_Post
+				&& 'page' === $page->post_type
+				&& 'publish' === $page->post_status
+			) {
+				$permalink = get_permalink( $page_id );
+				if ( is_string( $permalink ) && '' !== $permalink ) {
+					return $permalink;
+				}
+			}
+		}
+		$slug = (string) $this->get( 'custom_login_slug', 'secure-login' );
+		return home_url( '/' . trim( $slug, '/' ) . '/' );
+	}
+
 	public function update( string $key, $value ): void {
 		// Re-read fresh before merging so we never write back a stale cache
 		// snapshot (which would silently revert a value another writer just
@@ -464,7 +497,7 @@ class TSSL_Settings {
 			return;
 		}
 		$opts        = $this->get_all();
-		$login_url   = home_url( '/' . trim( (string) $opts['custom_login_slug'], '/' ) . '/' );
+		$login_url   = $this->get_login_url();
 		$settings_url = admin_url( 'admin.php?page=' . self::PAGE_SLUG );
 		?>
 		<div class="wrap tssl-wrap tssl-settings tssl-dashboard">
@@ -506,7 +539,7 @@ class TSSL_Settings {
 		$opts      = $this->get_all();
 		$logo_url  = $opts['login_logo_id'] ? (string) ( wp_get_attachment_image_url( (int) $opts['login_logo_id'], 'medium' ) ?: '' ) : '';
 		$key       = self::OPTION_KEY;
-		$login_url = home_url( '/' . trim( $opts['custom_login_slug'], '/' ) . '/' );
+		$login_url = $this->get_login_url();
 		?>
 		<div class="wrap tssl-wrap tssl-settings">
 			<?php

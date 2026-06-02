@@ -214,19 +214,49 @@ class TSSL_Page_Manager {
 		}
 
 		// Core self-heal: the page's slug must equal the configured slug, or
-		// the configured URL 404s. Re-slug when it has drifted.
+		// the configured URL 404s.
 		if ( $page->post_name !== $slug ) {
-			$applied = $this->set_login_page_slug( (int) $page->ID, $slug );
-			if ( $applied !== $slug ) {
-				// WordPress suffixed the slug because another post already
-				// owns the configured path. Adopt whatever truly sits there
-				// so login_page_id and the live URL stay in agreement.
-				$owner = get_page_by_path( $slug );
-				if ( $owner instanceof WP_Post && (int) $owner->ID !== (int) $page->ID ) {
-					$this->settings->update( 'login_page_id', (int) $owner->ID );
+			$shortcode = '[' . TSSL_Login_Flow::SHORTCODE . ']';
+
+			// Prefer adopting a DIFFERENT page that already owns the configured
+			// slug and carries our shortcode, rather than fighting `wp_unique_
+			// post_slug` (which would just suffix this page to `slug-2`). This
+			// is the duplicate case: login_page_id points at `slug-2` while a
+			// real login page already sits at `slug`. Switch tracking to the
+			// configured-slug page; never delete the now-untracked duplicate.
+			$owner = get_page_by_path( $slug );
+			if ( $owner instanceof WP_Post
+				&& (int) $owner->ID !== (int) $page->ID
+				&& 'trash' !== $owner->post_status
+				&& false !== strpos( (string) $owner->post_content, $shortcode )
+			) {
+				if ( 'publish' !== $owner->post_status ) {
+					wp_update_post(
+						array(
+							'ID'          => (int) $owner->ID,
+							'post_status' => 'publish',
+						)
+					);
 				}
+				$this->settings->update( 'login_page_id', (int) $owner->ID );
+				$changed = true;
+			} else {
+				// No conflicting login page at the slug — re-slug this page.
+				$applied = $this->set_login_page_slug( (int) $page->ID, $slug );
+				if ( $applied !== $slug ) {
+					// Slug taken by some other post. Adopt whatever truly sits
+					// there only if it is itself a login page; otherwise leave
+					// the suffixed slug rather than hijack an unrelated page.
+					$owner2 = get_page_by_path( $slug );
+					if ( $owner2 instanceof WP_Post
+						&& (int) $owner2->ID !== (int) $page->ID
+						&& false !== strpos( (string) $owner2->post_content, $shortcode )
+					) {
+						$this->settings->update( 'login_page_id', (int) $owner2->ID );
+					}
+				}
+				$changed = true;
 			}
-			$changed = true;
 		}
 
 		if ( $changed ) {

@@ -54,8 +54,11 @@ class TSSL_Login_Hider {
 	}
 
 	private function custom_login_url(): string {
-		$slug = (string) $this->settings->get( 'custom_login_slug', 'secure-login' );
-		return home_url( '/' . trim( $slug, '/' ) . '/' );
+		// Prefer the tracked page's real permalink so redirects and rewritten
+		// login URLs honour the site's permalink structure (including
+		// PATHINFO setups like /index.php/%postname%/). Falls back to the
+		// slug-based URL only when no valid login page is tracked.
+		return $this->settings->get_login_url();
 	}
 
 	private function current_path(): string {
