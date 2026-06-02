@@ -8,6 +8,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 A condensed version of this log lives in `readme.txt` for the wordpress.org
 plugin directory; this file is the canonical record for the GitHub repo.
 
+## [1.0.2] - 2026-06-02
+
+Patch release. Fixes a fresh-install bug where the configured custom login
+slug could return a theme 404, and makes the login page self-healing. No
+functional, authentication, or CAPTCHA behavior changed.
+
+### Fixed
+- **Custom login URL 404 on fresh installs.** When the custom slug in
+  settings drifted from the tracked login page's `post_name` (e.g. a slug
+  change whose rename silently skipped), the configured URL 404'd even
+  though the page existed and was published. Re-saving permalinks and
+  downgrading did not help because the bad state was persisted in the
+  database. The login page now reconciles against the configured slug.
+- **Stale settings cache.** `TSSL_Settings` cached `get_all()` and never
+  invalidated it when the option changed out-of-band (options.php save,
+  WP-CLI, another component), so a same-request consumer — notably the
+  page reconcile — could read or write back a stale snapshot. The cache is
+  now flushed on `update_option`/`add_option` of the settings key, and
+  `update()` re-reads fresh before merging.
+
+### Added
+- **Self-healing login-page reconcile** (`TSSL_Page_Manager::reconcile_login_page`).
+  Runs on every settings save and every admin page load (idempotent — no
+  writes when state is consistent). It:
+  - re-slugs a drifted login page back to the configured slug,
+  - re-publishes the page if it was unpublished,
+  - repairs a stale / wrong / missing / zero stored `login_page_id` by
+    adopting the page that owns the slug (or any page carrying the
+    `[two_step_secure_login]` shortcode), and
+  - creates a fresh login page only when there is nothing to adopt.
+- **One-time rewrite flush** scheduled (via a non-autoloaded option flag,
+  consumed on `wp_loaded`) whenever the login page is created, adopted, or
+  re-slugged — never on a normal request.
+
+### Tests
+- New `tests/playwright/tests/login-page-healing.spec.ts` (5 tests):
+  custom-slug configure resolves + stored id matches the real page id, no
+  duplicate page, stale-id self-heal (adopt branch), drifted-slug self-heal
+  (re-slug branch), and an upgrade-path guard that unrelated saves never
+  disturb a healthy login page.
+
+### Unchanged
+- Hidden-login REST (M5) / sitemap (M6) / search (M7) protections.
+- The login-portal CSS hardening from 1.0.1.
+- Authentication and CAPTCHA behavior.
+
 ## [1.0.1] - 2026-06-01
 
 Patch release. The login portal's styling is now isolated from the active
@@ -155,6 +201,7 @@ in-repo (local-only) for full per-finding writeups.
 
 Pre-release iteration in a private repo. No public install advised.
 
+[1.0.2]: https://github.com/tralyncllc/stealth-access/releases/tag/v1.0.2
 [1.0.1]: https://github.com/tralyncllc/stealth-access/releases/tag/v1.0.1
 [1.0.0]: https://github.com/tralyncllc/stealth-access/releases/tag/v1.0.0
 [0.1.15]: https://github.com/tralyncllc/stealth-access/commit/6c4a554

@@ -24,6 +24,14 @@ class TSSL_Settings {
 	private ?array $cache = null;
 
 	public function register(): void {
+		// Invalidate the in-memory cache whenever the option changes from
+		// ANYWHERE (options.php save, WP-CLI, another component) so later
+		// hooks in the same request — notably the page-manager reconcile —
+		// read the freshly stored values instead of a stale snapshot.
+		// Priority 1 so it runs before any consumer hooked at the default 10.
+		add_action( 'update_option_' . self::OPTION_KEY, array( $this, 'flush_cache' ), 1 );
+		add_action( 'add_option_' . self::OPTION_KEY, array( $this, 'flush_cache' ), 1 );
+
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
 		// Hook the legacy redirect on admin_menu (not admin_init) because
 		// wp-admin/includes/menu.php wp_die()s with "you are not allowed to
@@ -135,10 +143,23 @@ class TSSL_Settings {
 	}
 
 	public function update( string $key, $value ): void {
+		// Re-read fresh before merging so we never write back a stale cache
+		// snapshot (which would silently revert a value another writer just
+		// persisted — e.g. the slug saved moments earlier on options.php).
+		$this->cache = null;
 		$all         = $this->get_all();
 		$all[ $key ] = $value;
 		update_option( self::OPTION_KEY, $all );
 		$this->cache = $all;
+	}
+
+	/**
+	 * Drop the in-memory settings cache. Hooked on option create/update so a
+	 * change made outside this instance (options.php, WP-CLI, another
+	 * component) is picked up by the next get()/get_all() in this request.
+	 */
+	public function flush_cache(): void {
+		$this->cache = null;
 	}
 
 	public function ensure_defaults(): void {

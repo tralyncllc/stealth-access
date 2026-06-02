@@ -10,16 +10,39 @@ defined( 'ABSPATH' ) || exit;
 
 class TSSL_Page_Manager {
 
+	/**
+	 * Option flag that requests a one-time rewrite-rules flush on the next
+	 * page load. Set whenever the login page is created, adopted, or
+	 * re-slugged; consumed (and deleted) by maybe_flush_rewrite_rules() on
+	 * `wp_loaded`. This keeps flushes off the hot path — we never flush on
+	 * a normal request, only once after the login page actually changes.
+	 */
+	const FLUSH_FLAG = 'tssl_flush_rewrite_rules';
+
 	private TSSL_Settings $settings;
 	private bool $renaming = false;
+	private bool $reconciling = false;
 
 	public function __construct( TSSL_Settings $settings ) {
 		$this->settings = $settings;
 	}
 
 	public function register(): void {
-		add_action( 'update_option_' . TSSL_Settings::OPTION_KEY, array( $this, 'maybe_rename_page' ), 10, 2 );
-		add_action( 'update_option_' . TSSL_Settings::OPTION_KEY, array( $this, 'maybe_create_on_save' ), 10, 2 );
+		// Reconcile the tracked login page against the configured slug
+		// whenever settings are saved. Replaces the older split
+		// rename/create-on-save handlers with one self-healing routine that
+		// can also repair stale / wrong / missing IDs.
+		add_action( 'update_option_' . TSSL_Settings::OPTION_KEY, array( $this, 'reconcile_on_save' ), 10, 0 );
+
+		// Self-heal on every admin page load (cheap + idempotent): a fresh
+		// install, a slug change that didn't take, or a stale/wrong stored
+		// login_page_id all get repaired the moment an admin opens wp-admin.
+		add_action( 'admin_init', array( $this, 'reconcile_login_page' ) );
+
+		// Execute a scheduled one-time rewrite flush (set by the reconcile /
+		// create paths). Cheap option check on each load; only flushes when
+		// the login page actually changed.
+		add_action( 'wp_loaded', array( $this, 'maybe_flush_rewrite_rules' ) );
 
 		add_filter( 'wp_list_pages_excludes', array( $this, 'filter_wp_list_pages_excludes' ) );
 		add_filter( 'get_pages', array( $this, 'filter_get_pages' ), 10, 2 );
@@ -103,53 +126,201 @@ class TSSL_Page_Manager {
 		}
 
 		$this->settings->update( 'login_page_id', (int) $page_id );
+		$this->schedule_rewrite_flush();
 	}
 
-	public function maybe_create_on_save( $old, $new ): void {
-		unset( $old );
-		if ( ! is_array( $new ) ) {
-			return;
-		}
-		if ( empty( $new['auto_create_login_page'] ) ) {
-			return;
-		}
-		if ( ! empty( $new['login_page_id'] ) && get_post( (int) $new['login_page_id'] ) ) {
-			return;
-		}
-		$this->maybe_create_login_page();
+	/**
+	 * `update_option_<key>` callback. Defers to the self-healing reconcile so
+	 * a slug change on save always lands on the tracked page (and repairs the
+	 * id if it was stale). Re-entrancy is guarded inside reconcile_login_page.
+	 */
+	public function reconcile_on_save(): void {
+		$this->reconcile_login_page();
 	}
 
-	public function maybe_rename_page( $old, $new ): void {
-		if ( $this->renaming ) {
+	/**
+	 * Ensure the tracked login page exists, is published, and actually sits
+	 * at the configured custom slug — repairing whatever has drifted.
+	 *
+	 * This is the core self-heal for the fresh-install / divergence class of
+	 * bug where `custom_login_slug` in settings pointed at one slug while the
+	 * tracked page kept another `post_name`, so the configured URL 404'd even
+	 * though a perfectly good published login page existed. The routine is
+	 * idempotent: once state is consistent it performs no writes, so it is
+	 * safe to run on every admin load.
+	 *
+	 * Repairs, in order of preference:
+	 *   1. Tracked page valid  → publish it if needed, re-slug it to the
+	 *      configured slug if its post_name drifted.
+	 *   2. Tracked id stale/0/wrong → adopt a page already sitting at the
+	 *      configured slug, else any page carrying our shortcode, then
+	 *      re-slug + re-track it.
+	 *   3. Nothing to adopt → create a fresh login page.
+	 *
+	 * Any create / adopt / re-slug schedules a one-time rewrite flush so the
+	 * new URL resolves even on hosts that cache rewrite rules aggressively.
+	 */
+	public function reconcile_login_page(): void {
+		if ( $this->reconciling ) {
 			return;
 		}
-		if ( ! is_array( $old ) || ! is_array( $new ) ) {
+
+		$opts = $this->settings->get_all();
+		if ( empty( $opts['auto_create_login_page'] ) ) {
+			// Admin opted out of plugin-managed login pages — leave it alone.
 			return;
 		}
-		$old_slug = isset( $old['custom_login_slug'] ) ? (string) $old['custom_login_slug'] : '';
-		$new_slug = isset( $new['custom_login_slug'] ) ? (string) $new['custom_login_slug'] : '';
-		if ( $old_slug === $new_slug ) {
+
+		$slug = sanitize_title( (string) ( $opts['custom_login_slug'] ?: 'secure-login' ) );
+		if ( '' === $slug ) {
 			return;
 		}
-		$page_id = isset( $new['login_page_id'] ) ? absint( $new['login_page_id'] ) : 0;
-		if ( ! $page_id ) {
-			return;
+
+		$this->reconciling = true;
+
+		$tracked = (int) ( $opts['login_page_id'] ?? 0 );
+		$page    = $tracked > 0 ? get_post( $tracked ) : null;
+		$valid   = $page instanceof WP_Post
+			&& 'page' === $page->post_type
+			&& 'trash' !== $page->post_status;
+
+		if ( ! $valid ) {
+			// Stored id is 0 / missing / trashed / not a page. Try to adopt an
+			// existing login page before creating a brand-new one.
+			$page = $this->find_adoptable_login_page( $slug );
+			if ( $page instanceof WP_Post ) {
+				if ( (int) $page->ID !== $tracked ) {
+					$this->settings->update( 'login_page_id', (int) $page->ID );
+				}
+			} else {
+				// Nothing to adopt → create (stores id + schedules flush).
+				$this->maybe_create_login_page();
+				$this->reconciling = false;
+				return;
+			}
 		}
-		$page = get_post( $page_id );
-		if ( ! $page instanceof WP_Post ) {
-			return;
+
+		$changed = false;
+
+		// Make sure the page is published so the URL resolves at all.
+		if ( 'publish' !== $page->post_status ) {
+			wp_update_post(
+				array(
+					'ID'          => (int) $page->ID,
+					'post_status' => 'publish',
+				)
+			);
+			$changed = true;
 		}
-		if ( $page->post_name !== $old_slug ) {
-			return;
+
+		// Core self-heal: the page's slug must equal the configured slug, or
+		// the configured URL 404s. Re-slug when it has drifted.
+		if ( $page->post_name !== $slug ) {
+			$applied = $this->set_login_page_slug( (int) $page->ID, $slug );
+			if ( $applied !== $slug ) {
+				// WordPress suffixed the slug because another post already
+				// owns the configured path. Adopt whatever truly sits there
+				// so login_page_id and the live URL stay in agreement.
+				$owner = get_page_by_path( $slug );
+				if ( $owner instanceof WP_Post && (int) $owner->ID !== (int) $page->ID ) {
+					$this->settings->update( 'login_page_id', (int) $owner->ID );
+				}
+			}
+			$changed = true;
 		}
+
+		if ( $changed ) {
+			$this->schedule_rewrite_flush();
+		}
+
+		$this->reconciling = false;
+	}
+
+	/**
+	 * Find a login page to adopt when the tracked id is unusable. Prefers a
+	 * page already sitting at the configured slug; falls back to any page
+	 * carrying our login shortcode (slug drifted elsewhere).
+	 *
+	 * @param string $slug The configured login slug.
+	 * @return WP_Post|null
+	 */
+	private function find_adoptable_login_page( string $slug ): ?WP_Post {
+		$shortcode = '[' . TSSL_Login_Flow::SHORTCODE . ']';
+
+		// 1. A page already living at the configured slug that carries our
+		//    shortcode (don't hijack an unrelated page that happens to share
+		//    the slug).
+		$at_path = get_page_by_path( $slug );
+		if ( $at_path instanceof WP_Post
+			&& 'trash' !== $at_path->post_status
+			&& false !== strpos( (string) $at_path->post_content, $shortcode )
+		) {
+			return $at_path;
+		}
+
+		// 2. Any non-trashed page carrying our shortcode (the slug drifted to
+		//    something else). Pick the lowest ID for determinism.
+		$candidates = get_posts(
+			array(
+				'post_type'        => 'page',
+				'post_status'      => array( 'publish', 'draft', 'pending', 'private' ),
+				'numberposts'      => 1,
+				'orderby'          => 'ID',
+				'order'            => 'ASC',
+				's'                => $shortcode,
+				'suppress_filters' => true,
+			)
+		);
+		if ( ! empty( $candidates ) && $candidates[0] instanceof WP_Post ) {
+			return $candidates[0];
+		}
+
+		return null;
+	}
+
+	/**
+	 * Update a page's post_name and return the slug WordPress actually
+	 * applied (which may be suffixed if the slug was taken). Reuses the
+	 * $renaming guard so any legacy rename hooks don't recurse.
+	 *
+	 * @param int    $page_id Target page.
+	 * @param string $slug    Desired slug.
+	 * @return string The slug actually stored.
+	 */
+	private function set_login_page_slug( int $page_id, string $slug ): string {
 		$this->renaming = true;
 		wp_update_post(
 			array(
 				'ID'        => $page_id,
-				'post_name' => sanitize_title( $new_slug ),
+				'post_name' => $slug,
 			)
 		);
 		$this->renaming = false;
+
+		$fresh = get_post( $page_id );
+		return $fresh instanceof WP_Post ? (string) $fresh->post_name : '';
+	}
+
+	/**
+	 * Request a one-time rewrite-rules flush on the next page load. Cheap,
+	 * non-autoloaded option; consumed by maybe_flush_rewrite_rules().
+	 */
+	private function schedule_rewrite_flush(): void {
+		update_option( self::FLUSH_FLAG, 1, false );
+	}
+
+	/**
+	 * `wp_loaded` callback. Performs a single soft rewrite flush when one was
+	 * scheduled, then clears the flag so we never flush on a normal request.
+	 */
+	public function maybe_flush_rewrite_rules(): void {
+		if ( ! get_option( self::FLUSH_FLAG ) ) {
+			return;
+		}
+		delete_option( self::FLUSH_FLAG );
+		// Soft flush: pages resolve via the generic `pagename` rule, so we
+		// never need to regenerate the .htaccess / web.config block.
+		flush_rewrite_rules( false );
 	}
 
 	private function should_hide_from_lists(): bool {

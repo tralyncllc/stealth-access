@@ -4,7 +4,7 @@ Tags: login, security, two-factor, captcha, hardening
 Requires at least: 6.8
 Tested up to: 7.0
 Requires PHP: 8.1
-Stable tag: 1.0.1
+Stable tag: 1.0.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -84,6 +84,15 @@ Secret keys are never rendered verbatim in HTML. The admin field is blank after 
 
 == Changelog ==
 
+= 1.0.2 =
+
+Patch release. Fixes a fresh-install bug where a custom login slug could 404.
+
+* **Custom login URL now always resolves.** On some fresh installs, changing the custom login slug left the tracked login page sitting at its old slug, so the configured URL returned a theme 404 even though the page existed and was published (and neither re-saving permalinks nor reinstalling fixed it, because the bad state lived in the database).
+* **Self-healing login page.** The plugin now reconciles the tracked login page against the configured slug on every settings save and every admin page load: it re-slugs a drifted page, re-publishes it if needed, and repairs a stale, wrong, missing, or zero stored page ID by adopting the real login page (or creating one if none exists).
+* **One-time rewrite flush** is scheduled only when the login page is actually created, adopted, or re-slugged — never on a normal request.
+* Hidden-login REST / sitemap / search protections and the upgrade path for existing installs are unchanged.
+
 = 1.0.1 =
 
 Patch release. Login portal styling is now isolated from the active theme.
@@ -110,6 +119,10 @@ The work for v1.0.0 was driven by an internal multi-agent security audit (81 fin
 Combined regression coverage: 124 Playwright tests covering blocking, admin-management, opt-out, and behavioural-regression paths for every closed finding.
 
 == Upgrade Notice ==
+
+= 1.0.2 =
+
+Bug-fix patch. Repairs a fresh-install case where a custom login slug could return a 404, and self-heals the login page on save / admin load. No functional, authentication, or CAPTCHA changes. Safe drop-in upgrade.
 
 = 1.0.1 =
 
