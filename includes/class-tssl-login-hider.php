@@ -94,7 +94,58 @@ class TSSL_Login_Hider {
 		if ( in_array( $action, $reset, true ) && ! $this->settings->get( 'disable_password_reset' ) ) {
 			return true;
 		}
+
+		// Second-factor / plugin-owned login actions. A 2FA provider that hooks
+		// the standard WordPress login flow (the official "Two-Factor" plugin,
+		// for example) renders its challenge and posts the code back to
+		// `wp-login.php?action=validate_2fa` (or `backup_2fa`, or a
+		// provider-specific value). Each such action is serviced by a
+		// `login_form_{$action}` handler the plugin registered, so the request
+		// is processed by that plugin and does NOT fall through to
+		// wp-login.php's default username/password form. That distinction is
+		// what keeps this from reopening the H1 `interim-login` action-coercion
+		// bypass: `interim-login` has no `login_form_` handler and decays to the
+		// default login form, so it stays blocked below.
+		//
+		// The credential/registration actions are excluded explicitly as
+		// defence in depth — even if a plugin attaches a `login_form_login`
+		// listener (some add fields), `action=login` must never become a way to
+		// render the standard login form around the two-step flow.
+		$reserved = array( 'login', 'register', 'confirmaction' );
+		if (
+			'' !== $action
+			&& ! in_array( $action, $reserved, true )
+			&& has_action( 'login_form_' . $action )
+		) {
+			/**
+			 * Filters whether a plugin-registered `wp-login.php?action=…` step
+			 * is allowed through while hidden-login is active. Defaults to true
+			 * for any action that has a `login_form_{$action}` handler, which is
+			 * how WordPress 2FA plugins add their second-factor step. Return
+			 * false to keep a specific action blocked.
+			 *
+			 * @param bool   $allow  Whether to allow the action. Default true.
+			 * @param string $action The wp-login.php action value.
+			 */
+			return (bool) apply_filters( 'tssl_allow_login_action', true, $action );
+		}
+
 		return false;
+	}
+
+	/**
+	 * Whether an authentication is currently being completed — i.e. we are
+	 * inside the `wp_login` action. A 2FA plugin renders or redirects to its
+	 * second-factor challenge from this hook, and to do so it builds the
+	 * challenge URL from `site_url( 'wp-login.php', … )`. While the challenge
+	 * is being produced we must leave wp-login.php URLs intact so the
+	 * provider's form posts back to the real endpoint. The challenge is only
+	 * ever shown to a visitor who has already cleared the username and
+	 * password steps, so this does not expose the hidden login URL to
+	 * anonymous traffic.
+	 */
+	private function is_authenticating(): bool {
+		return (bool) doing_action( 'wp_login' );
 	}
 
 	public function maybe_block_wp_login(): void {
@@ -138,6 +189,9 @@ class TSSL_Login_Hider {
 		if ( false === strpos( (string) $url, 'wp-login.php' ) ) {
 			return $url;
 		}
+		if ( $this->is_authenticating() ) {
+			return (string) $url;
+		}
 		return $this->rewrite_login_url( (string) $url );
 	}
 
@@ -147,6 +201,9 @@ class TSSL_Login_Hider {
 			return (string) $location;
 		}
 		if ( false === strpos( (string) $location, 'wp-login.php' ) ) {
+			return (string) $location;
+		}
+		if ( $this->is_authenticating() ) {
 			return (string) $location;
 		}
 		return $this->rewrite_login_url( (string) $location );

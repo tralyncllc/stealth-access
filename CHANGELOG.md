@@ -8,6 +8,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 A condensed version of this log lives in `readme.txt` for the wordpress.org
 plugin directory; this file is the canonical record for the GitHub repo.
 
+## [1.0.4] - 2026-06-11
+
+Patch release. Restores compatibility with WordPress two-factor (2FA) plugins
+when **Hide default login URLs** is enabled. This is a production-breaking
+authentication-compatibility fix and ships outside the normal monthly cadence.
+Authentication is not weakened and 2FA is never bypassed.
+
+### Fixed
+- **2FA second-factor steps were blocked, locking users out.** A 2FA plugin
+  completes login in two requests: the first (username + password) succeeds,
+  and the plugin then renders a challenge whose form posts back to
+  `wp-login.php?action=<provider-action>` (e.g. `validate_2fa` / `backup_2fa`
+  for the official *Two-Factor* plugin). With hidden login on,
+  `TSSL_Login_Hider::maybe_block_wp_login()` only honoured a fixed allowlist
+  (`logout`, `postpass`, and the reset actions), so the second-factor action
+  was 404'd and the half-authenticated user could never submit their code.
+  - `allowed_login_action()` now also permits any action that a plugin
+    services via a registered `login_form_{$action}` handler — precisely how
+    2FA providers hook the login flow. Because such an action is handled by
+    the plugin and never falls through to wp-login.php's default
+    username/password form, this does **not** reopen the H1 `interim-login`
+    action-coercion bypass (which has no `login_form_` handler). The
+    credential/registration actions (`login`, `register`, `confirmaction`) are
+    excluded explicitly as defence in depth.
+  - New `tssl_allow_login_action` filter (`bool $allow, string $action`) lets
+    a site curtail or extend which plugin-registered login actions pass.
+- **2FA challenge forms posted to the hidden page instead of wp-login.php.**
+  2FA plugins build their form action from `site_url( 'wp-login.php', … )`,
+  which `filter_site_url()` rewrote to the hidden slug — so the challenge
+  submitted to the wrong place and the second factor was lost. `filter_site_url()`
+  and `filter_wp_redirect()` now leave `wp-login.php` URLs intact while an
+  authentication is being completed (inside the `wp_login` hook, via the new
+  `is_authenticating()` guard). The challenge is only ever produced after the
+  username and password steps, so the hidden login URL is not exposed to
+  anonymous traffic.
+
+### Tests
+- New `tests/playwright/tests/two-factor-compat.spec.ts` (5 tests). A mu-plugin
+  fixture stands in for a 2FA provider by registering a `login_form_` handler:
+  a registered second-factor action reaches `wp-login.php` (not 404'd); an
+  unregistered action and `action=login` stay blocked (no broad allowlist, no
+  credential-form re-exposure); `interim-login` stays blocked (H1 closed); and
+  `wp-login.php` URLs are intact inside `wp_login` but rewritten otherwise.
+
+### Unchanged
+- The H1 `interim-login` bypass, the `wp-login.php` credential form, XML-RPC
+  (H2a), and Application Password (H2b) protections — verified still green.
+- Hidden-login REST (M5) / sitemap (M6) / search (M7) protections, the v1.0.3
+  PATHINFO permalink fix, the v1.0.2 self-heal, and the v1.0.1 CSS hardening.
+- CAPTCHA behavior.
+
 ## [1.0.3] - 2026-06-02
 
 Patch release. Fixes the custom login URL on sites using PATHINFO permalinks
@@ -245,6 +296,7 @@ in-repo (local-only) for full per-finding writeups.
 
 Pre-release iteration in a private repo. No public install advised.
 
+[1.0.4]: https://github.com/tralyncllc/stealth-access/releases/tag/v1.0.4
 [1.0.3]: https://github.com/tralyncllc/stealth-access/releases/tag/v1.0.3
 [1.0.2]: https://github.com/tralyncllc/stealth-access/releases/tag/v1.0.2
 [1.0.1]: https://github.com/tralyncllc/stealth-access/releases/tag/v1.0.1

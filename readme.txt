@@ -4,7 +4,7 @@ Tags: login, security, two-factor, captcha, hardening
 Requires at least: 6.8
 Tested up to: 7.0
 Requires PHP: 8.1
-Stable tag: 1.0.3
+Stable tag: 1.0.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -84,6 +84,16 @@ Secret keys are never rendered verbatim in HTML. The admin field is blank after 
 
 == Changelog ==
 
+= 1.0.4 =
+
+Patch release. Restores compatibility with WordPress two-factor (2FA) plugins when hidden login URLs are enabled.
+
+* **2FA second-factor steps are no longer blocked.** With **Hide default login URLs** on, the second step of a 2FA plugin (for example the official *Two-Factor* plugin, which posts its code back to `wp-login.php?action=validate_2fa`) was treated as a disallowed login action and returned a 404 — so a user who had entered their username and password could never submit their authentication code and was locked out. The plugin now lets any login action that a plugin services through a `login_form_{action}` handler reach `wp-login.php`, which is exactly how 2FA providers add their challenge step. A new `tssl_allow_login_action` filter lets you override this per action.
+* **2FA challenge forms post back to the real endpoint.** While an authentication is being completed (inside the `wp_login` hook), the plugin no longer rewrites `wp-login.php` URLs to the hidden slug, so a 2FA plugin's challenge form submits to the correct place. The challenge is only ever shown after the username and password steps, so this does not expose the hidden login URL to anonymous visitors.
+* The `interim-login` action-coercion bypass (H1), the `wp-login.php` credential form, XML-RPC, and Application Password protections are all unchanged — none of those actions has a `login_form_` handler, so they stay blocked.
+
+No CAPTCHA behavior changed, and authentication is not weakened: the 2FA provider still runs its full challenge before the user is logged in.
+
 = 1.0.3 =
 
 Patch release. Fixes the custom login URL on sites with "PATHINFO" permalinks.
@@ -128,6 +138,10 @@ The work for v1.0.0 was driven by an internal multi-agent security audit (81 fin
 Combined regression coverage: 124 Playwright tests covering blocking, admin-management, opt-out, and behavioural-regression paths for every closed finding.
 
 == Upgrade Notice ==
+
+= 1.0.4 =
+
+Production-fix patch. Restores login for sites that pair Stealth Access with a WordPress 2FA plugin while hidden login URLs are on — the 2FA second-factor step was being blocked. No CAPTCHA changes; authentication is not weakened. Recommended for anyone using two-factor authentication.
 
 = 1.0.3 =
 
