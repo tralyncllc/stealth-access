@@ -4,7 +4,7 @@ Tags: login, security, two-factor, captcha, hardening
 Requires at least: 6.8
 Tested up to: 7.0
 Requires PHP: 8.1
-Stable tag: 1.0.4
+Stable tag: 1.0.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -84,6 +84,16 @@ Secret keys are never rendered verbatim in HTML. The admin field is blank after 
 
 == Changelog ==
 
+= 1.0.5 =
+
+Patch release. Restores login on sites using a two-factor (2FA) plugin that validates its code inside the WordPress `authenticate` filter — most notably **Wordfence Login Security**.
+
+* **Two-step portal now completes Wordfence-style 2FA.** When the password was correct but the 2FA plugin still needed a code, it returned an intermediate "code required" error that the portal mistook for bad credentials and showed *"Invalid login details. Please try again."* — leaving the user with no way to enter a code. The portal now recognises those provider responses and presents a conditional **Authentication Code** step instead.
+* **Conditional 2FA step.** After a correct password, the portal asks the user to re-enter their password and their authentication code, then hands the code to the provider through its native request field so the provider performs the validation. A correct code logs in; a wrong code shows *"Invalid authentication code. Please try again."*; a wrong password still shows *"Invalid login details."*; accounts without 2FA are unaffected.
+* **Recognised codes are filterable.** The default set (`wfls_twofactor_required`, `wfls_twofactor_failed`) can be extended via the `tssl_2fa_required_error_codes` filter, and the request field the code is written to via `tssl_2fa_code_post_fields`.
+
+Security is unchanged: the password is never stored between requests (it is requested again on the 2FA step by design), no authentication cookie is forced, no authentication hook is short-circuited, and the 2FA provider still performs the actual code validation. The v1.0.4 `login_form_{action}` compatibility and the v1.0.3 permalink behavior are untouched.
+
 = 1.0.4 =
 
 Patch release. Restores compatibility with WordPress two-factor (2FA) plugins when hidden login URLs are enabled.
@@ -138,6 +148,10 @@ The work for v1.0.0 was driven by an internal multi-agent security audit (81 fin
 Combined regression coverage: 124 Playwright tests covering blocking, admin-management, opt-out, and behavioural-regression paths for every closed finding.
 
 == Upgrade Notice ==
+
+= 1.0.5 =
+
+Production-fix patch. Restores login for sites that pair Stealth Access with a 2FA plugin that validates its code in the WordPress authenticate filter (e.g. Wordfence Login Security) — the password step no longer dead-ends with "Invalid login details." Security model unchanged; no 2FA bypass. Recommended for anyone using two-factor authentication.
 
 = 1.0.4 =
 

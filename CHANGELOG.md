@@ -8,6 +8,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 A condensed version of this log lives in `readme.txt` for the wordpress.org
 plugin directory; this file is the canonical record for the GitHub repo.
 
+## [1.0.5] - 2026-06-12
+
+Patch release. Restores login on sites whose 2FA plugin validates its second
+factor inside the WordPress `authenticate` filter — most notably **Wordfence
+Login Security**. Production-breaking authentication-compatibility fix; ships
+outside the monthly cadence. The security model is unchanged: the password is
+never persisted, no auth cookie is forced, no auth hook is short-circuited, and
+the provider still performs the code validation.
+
+### Fixed
+- **Two-step portal collapsed a 2FA "code required" signal into "Invalid login
+  details."** Wordfence Login Security hooks `authenticate` (priority 25) and,
+  when the password is correct but no code is present, returns
+  `WP_Error('wfls_twofactor_required')` — an intermediate "second factor
+  needed" response, not a credential failure. `TSSL_Login_Flow::process_step2()`
+  treated every `wp_signon()` `WP_Error` as bad credentials, so the user saw
+  *"Invalid login details. Please try again."* and could never reach a 2FA
+  prompt. (This is a different provider model than the v1.0.4 fix, which handled
+  providers using a separate `login_form_{action}` round-trip such as the
+  official *Two-Factor* plugin.)
+  - `process_step2()` now detects recognised 2FA error codes and advances to a
+    conditional second-factor step instead of masking them.
+  - New `process_step2fa()` re-runs `wp_signon()` through the full standard
+    lifecycle (no forced cookies, no hook short-circuit), writing the entered
+    code to the provider's native request field (`$_POST['wfls-token']`) so the
+    provider validates it. Wrong code → *"Invalid authentication code."*; wrong
+    password → *"Invalid login details."*
+  - New conditional **Authentication Code** step (`render_step2fa_form()`,
+    `tssl_step=2fa`) asks the user to re-enter their password and code. The
+    password is deliberately **not** stored between requests.
+
+### Added
+- Filter `tssl_2fa_required_error_codes` — extend the recognised provider 2FA
+  error codes (defaults: `wfls_twofactor_required`, `wfls_twofactor_failed`).
+- Filter `tssl_2fa_code_post_fields` — map the entered code to additional
+  provider request fields (default: `wfls-token`).
+
+### Tests
+- New `tests/playwright/tests/two-factor-authenticate.spec.ts` (5 tests, CI-
+  portable via a fixture provider + dedicated non-enrolled user): correct
+  password shows the 2FA step (not "Invalid login details"); wrong code fails
+  safely; correct code logs in; a non-2FA user logs in normally; a wrong
+  password still shows "Invalid login details." Verified end-to-end against a
+  live Wordfence install on dev and on production/staging with real TOTP.
+
+### Unchanged
+- The v1.0.4 `login_form_{action}` second-factor compatibility, the H1
+  `interim-login` bypass and `wp-login.php`/XML-RPC/Application-Password
+  protections, hidden-login REST/sitemap/search protections, and the v1.0.3
+  PATHINFO permalink / canonical login URL behavior.
+
 ## [1.0.4] - 2026-06-11
 
 Patch release. Restores compatibility with WordPress two-factor (2FA) plugins
@@ -296,6 +347,7 @@ in-repo (local-only) for full per-finding writeups.
 
 Pre-release iteration in a private repo. No public install advised.
 
+[1.0.5]: https://github.com/tralyncllc/stealth-access/releases/tag/v1.0.5
 [1.0.4]: https://github.com/tralyncllc/stealth-access/releases/tag/v1.0.4
 [1.0.3]: https://github.com/tralyncllc/stealth-access/releases/tag/v1.0.3
 [1.0.2]: https://github.com/tralyncllc/stealth-access/releases/tag/v1.0.2

@@ -17,6 +17,7 @@ class TSSL_Login_Flow {
 	const SHORTCODE     = 'two_step_secure_login';
 	const NONCE_STEP1   = 'tssl_login_step1';
 	const NONCE_STEP2   = 'tssl_login_step2';
+	const NONCE_STEP2FA = 'tssl_login_step2fa';
 	const NONCE_RESTART = 'tssl_login_restart';
 
 	private TSSL_Settings $settings;
@@ -56,6 +57,9 @@ class TSSL_Login_Flow {
 			case 'step2':
 				$this->process_step2();
 				break;
+			case 'step2fa':
+				$this->process_step2fa();
+				break;
 			case 'restart':
 				$this->process_restart();
 				break;
@@ -67,14 +71,14 @@ class TSSL_Login_Flow {
 			! isset( $_POST['_tssl_step1_nonce'] ) ||
 			! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['_tssl_step1_nonce'] ) ), self::NONCE_STEP1 )
 		) {
-			$this->redirect_with_error( 1, __( 'Security check failed. Please try again.', 'stealth-access' ) );
+			$this->redirect_with_error( '1', __( 'Security check failed. Please try again.', 'stealth-access' ) );
 			return;
 		}
 
 		if ( $this->captcha->is_active_for( 'username_step' ) ) {
 			$result = $this->captcha->verify( TSSL_Captcha::ACTION_USERNAME_STEP );
 			if ( is_wp_error( $result ) ) {
-				$this->redirect_with_error( 1, __( 'CAPTCHA validation failed.', 'stealth-access' ) );
+				$this->redirect_with_error( '1', __( 'CAPTCHA validation failed.', 'stealth-access' ) );
 				return;
 			}
 		}
@@ -84,7 +88,7 @@ class TSSL_Login_Flow {
 			: '';
 
 		if ( '' === $identifier || strlen( $identifier ) > 200 ) {
-			$this->redirect_with_error( 1, __( 'Please enter your username or email.', 'stealth-access' ) );
+			$this->redirect_with_error( '1', __( 'Please enter your username or email.', 'stealth-access' ) );
 			return;
 		}
 
@@ -107,14 +111,14 @@ class TSSL_Login_Flow {
 			! isset( $_POST['_tssl_step2_nonce'] ) ||
 			! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['_tssl_step2_nonce'] ) ), self::NONCE_STEP2 )
 		) {
-			$this->redirect_with_error( 2, __( 'Security check failed. Please try again.', 'stealth-access' ) );
+			$this->redirect_with_error( '2', __( 'Security check failed. Please try again.', 'stealth-access' ) );
 			return;
 		}
 
 		if ( $this->captcha->is_active_for( 'password_step' ) ) {
 			$result = $this->captcha->verify( TSSL_Captcha::ACTION_PASSWORD_STEP );
 			if ( is_wp_error( $result ) ) {
-				$this->redirect_with_error( 2, __( 'CAPTCHA validation failed.', 'stealth-access' ) );
+				$this->redirect_with_error( '2', __( 'CAPTCHA validation failed.', 'stealth-access' ) );
 				return;
 			}
 		}
@@ -128,7 +132,7 @@ class TSSL_Login_Flow {
 
 		$password = isset( $_POST['tssl_password'] ) ? (string) wp_unslash( $_POST['tssl_password'] ) : '';
 		if ( '' === $password ) {
-			$this->redirect_with_error( 2, __( 'Invalid login details. Please try again.', 'stealth-access' ) );
+			$this->redirect_with_error( '2', __( 'Invalid login details. Please try again.', 'stealth-access' ) );
 			return;
 		}
 
@@ -147,7 +151,21 @@ class TSSL_Login_Flow {
 
 		$user = wp_signon( $creds, is_ssl() );
 		if ( is_wp_error( $user ) ) {
-			$this->redirect_with_error( 2, __( 'Invalid login details. Please try again.', 'stealth-access' ) );
+			// A 2FA plugin (e.g. Wordfence Login Security) that validates its
+			// second factor inside the `authenticate` filter signals "the
+			// password was correct but a code is still needed" by returning a
+			// provider-specific WP_Error — NOT a credential failure. Detect
+			// those codes and advance to a conditional 2FA step instead of
+			// masking them as "Invalid login details". The 2FA provider still
+			// performs the actual validation; we never bypass it.
+			if ( $this->is_2fa_error_code( (string) $user->get_error_code() ) ) {
+				$redirect_to = ! empty( $_REQUEST['redirect_to'] )
+					? esc_url_raw( wp_unslash( $_REQUEST['redirect_to'] ) )
+					: '';
+				$this->redirect_to_2fa_step( $redirect_to );
+				return;
+			}
+			$this->redirect_with_error( '2', __( 'Invalid login details. Please try again.', 'stealth-access' ) );
 			return;
 		}
 
@@ -163,12 +181,130 @@ class TSSL_Login_Flow {
 		exit;
 	}
 
+	/**
+	 * Process the conditional second-factor step. Reached only after the
+	 * password step succeeded against the credentials but a 2FA plugin asked
+	 * for a code. The user re-enters their password (we never persist it) and
+	 * their authentication code; the code is handed to the provider through
+	 * its native request channel so the provider validates it. No auth cookie
+	 * is set here and no authentication hook is short-circuited — `wp_signon()`
+	 * runs the full standard lifecycle.
+	 */
+	private function process_step2fa(): void {
+		if (
+			! isset( $_POST['_tssl_step2fa_nonce'] ) ||
+			! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['_tssl_step2fa_nonce'] ) ), self::NONCE_STEP2FA )
+		) {
+			$this->redirect_with_error( '2fa', __( 'Security check failed. Please try again.', 'stealth-access' ) );
+			return;
+		}
+
+		$identifier = $this->security->get_stored_identifier();
+		if ( null === $identifier ) {
+			$this->security->clear_storage();
+			wp_safe_redirect( $this->current_url() );
+			exit;
+		}
+
+		$password = isset( $_POST['tssl_password'] ) ? (string) wp_unslash( $_POST['tssl_password'] ) : '';
+		$code     = isset( $_POST['tssl_2fa_code'] )
+			? sanitize_text_field( wp_unslash( $_POST['tssl_2fa_code'] ) )
+			: '';
+
+		if ( '' === $password ) {
+			// No password re-entered — send back to the password step.
+			$this->redirect_with_error( '2', __( 'Invalid login details. Please try again.', 'stealth-access' ) );
+			return;
+		}
+
+		// Hand the entered code to the 2FA provider through the request fields
+		// it reads natively. Wordfence Login Security reads `$_POST['wfls-token']`
+		// inside its `authenticate` callback; populating it lets the provider
+		// validate the code as part of the normal sign-on. The list is
+		// filterable so other providers can map the code to their own field.
+		if ( '' !== $code ) {
+			$fields = (array) apply_filters( 'tssl_2fa_code_post_fields', array( 'wfls-token' ), $identifier );
+			foreach ( $fields as $field ) {
+				$field = (string) $field;
+				if ( '' !== $field ) {
+					$_POST[ $field ]    = $code;
+					$_REQUEST[ $field ] = $code;
+				}
+			}
+		}
+
+		$creds = array(
+			'user_login'    => $identifier,
+			'user_password' => $password,
+			'remember'      => false,
+		);
+
+		if ( is_email( $identifier ) ) {
+			$user = get_user_by( 'email', $identifier );
+			if ( $user instanceof WP_User ) {
+				$creds['user_login'] = $user->user_login;
+			}
+		}
+
+		$user = wp_signon( $creds, is_ssl() );
+		if ( is_wp_error( $user ) ) {
+			if ( $this->is_2fa_error_code( (string) $user->get_error_code() ) ) {
+				// Password was fine; the code was missing, wrong, or expired.
+				$this->redirect_with_error( '2fa', __( 'Invalid authentication code. Please try again.', 'stealth-access' ) );
+				return;
+			}
+			// Anything else (e.g. a mistyped password on re-entry) is a
+			// credential failure — return to the password step.
+			$this->redirect_with_error( '2', __( 'Invalid login details. Please try again.', 'stealth-access' ) );
+			return;
+		}
+
+		$this->security->clear_storage();
+
+		$requested = '';
+		if ( ! empty( $_REQUEST['redirect_to'] ) ) {
+			$requested = esc_url_raw( wp_unslash( $_REQUEST['redirect_to'] ) );
+		}
+
+		$target = $this->security->determine_safe_redirect( '' !== $requested ? $requested : null, $user );
+		wp_safe_redirect( $target );
+		exit;
+	}
+
+	/**
+	 * Recognised provider WP_Error codes that mean "password accepted, second
+	 * factor still required/invalid" rather than "bad credentials". Filterable
+	 * so additional 2FA providers can be supported without code changes.
+	 */
+	private function is_2fa_error_code( string $code ): bool {
+		if ( '' === $code ) {
+			return false;
+		}
+		$codes = (array) apply_filters(
+			'tssl_2fa_required_error_codes',
+			array( 'wfls_twofactor_required', 'wfls_twofactor_failed' )
+		);
+		return in_array( $code, $codes, true );
+	}
+
+	/**
+	 * Redirect to the conditional 2FA step, preserving any redirect target.
+	 */
+	private function redirect_to_2fa_step( string $redirect_to = '' ): void {
+		$url = add_query_arg( 'tssl_step', '2fa', $this->current_url() );
+		if ( '' !== $redirect_to ) {
+			$url = add_query_arg( 'redirect_to', rawurlencode( $redirect_to ), $url );
+		}
+		wp_safe_redirect( $url );
+		exit;
+	}
+
 	private function process_restart(): void {
 		if (
 			! isset( $_POST['_tssl_restart_nonce'] ) ||
 			! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['_tssl_restart_nonce'] ) ), self::NONCE_RESTART )
 		) {
-			$this->redirect_with_error( 2, __( 'Security check failed. Please try again.', 'stealth-access' ) );
+			$this->redirect_with_error( '2', __( 'Security check failed. Please try again.', 'stealth-access' ) );
 			return;
 		}
 		$this->security->clear_storage();
@@ -176,10 +312,10 @@ class TSSL_Login_Flow {
 		exit;
 	}
 
-	private function redirect_with_error( int $step, string $message ): void {
+	private function redirect_with_error( string $step, string $message ): void {
 		$url = add_query_arg(
 			array(
-				'tssl_step'  => (string) $step,
+				'tssl_step'  => $step,
 				'tssl_error' => rawurlencode( $message ),
 			),
 			$this->current_url()
@@ -210,17 +346,30 @@ class TSSL_Login_Flow {
 			return $this->render_already_logged_in();
 		}
 
-		$step        = ( isset( $_GET['tssl_step'] ) && '2' === (string) $_GET['tssl_step'] ) ? 2 : 1;
+		$requested_step = isset( $_GET['tssl_step'] ) ? (string) $_GET['tssl_step'] : '1';
+		if ( '2fa' === $requested_step ) {
+			$step = '2fa';
+		} elseif ( '2' === $requested_step ) {
+			$step = '2';
+		} else {
+			$step = '1';
+		}
 		$error       = isset( $_GET['tssl_error'] ) ? sanitize_text_field( wp_unslash( $_GET['tssl_error'] ) ) : '';
 		$redirect_to = isset( $_GET['redirect_to'] ) ? esc_url_raw( wp_unslash( $_GET['redirect_to'] ) ) : '';
 
-		if ( 2 === $step && null === $this->security->get_stored_identifier() ) {
-			$step = 1;
+		// Steps 2 and 2fa require a stored identifier from step 1; without it,
+		// fall back to the start.
+		if ( ( '2' === $step || '2fa' === $step ) && null === $this->security->get_stored_identifier() ) {
+			$step = '1';
 		}
 
-		$subtitle = ( 2 === $step )
-			? __( 'Enter your password to continue.', 'stealth-access' )
-			: __( 'Enter your username or email to continue.', 'stealth-access' );
+		if ( '2fa' === $step ) {
+			$subtitle = __( 'For your security, please re-enter your password and authentication code to complete login.', 'stealth-access' );
+		} elseif ( '2' === $step ) {
+			$subtitle = __( 'Enter your password to continue.', 'stealth-access' );
+		} else {
+			$subtitle = __( 'Enter your username or email to continue.', 'stealth-access' );
+		}
 
 		ob_start();
 		?>
@@ -236,7 +385,9 @@ class TSSL_Login_Flow {
 					<div class="tssl-message tssl-error" role="alert"><?php echo esc_html( rawurldecode( $error ) ); ?></div>
 				<?php endif; ?>
 				<?php
-				if ( 2 === $step ) {
+				if ( '2fa' === $step ) {
+					$this->render_step2fa_form( $redirect_to );
+				} elseif ( '2' === $step ) {
 					$this->render_step2_form( $redirect_to );
 				} else {
 					$this->render_step1_form( $redirect_to );
@@ -379,6 +530,43 @@ class TSSL_Login_Flow {
 			<?php echo $captcha_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 			<button class="tssl-button" type="submit">
 				<span><?php esc_html_e( 'Log in', 'stealth-access' ); ?></span>
+				<svg class="tssl-arrow" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+					<path d="M5 12h14M13 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+				</svg>
+			</button>
+		</form>
+		<form class="tssl-restart-form" method="post" action="">
+			<input type="hidden" name="tssl_action" value="restart" />
+			<?php wp_nonce_field( self::NONCE_RESTART, '_tssl_restart_nonce' ); ?>
+			<button class="tssl-link" type="submit"><?php esc_html_e( 'Use a different account', 'stealth-access' ); ?></button>
+		</form>
+		<?php
+	}
+
+	/**
+	 * Conditional second-factor form. Shown only when a 2FA plugin requested a
+	 * code during the password step. The password is requested again because
+	 * it is never persisted between requests; the code is submitted alongside
+	 * it so the provider can validate both in a single standard sign-on.
+	 */
+	private function render_step2fa_form( string $redirect_to ): void {
+		?>
+		<form class="tssl-login-form" method="post" action="">
+			<input type="hidden" name="tssl_action" value="step2fa" />
+			<?php wp_nonce_field( self::NONCE_STEP2FA, '_tssl_step2fa_nonce' ); ?>
+			<?php if ( '' !== $redirect_to ) : ?>
+				<input type="hidden" name="redirect_to" value="<?php echo esc_attr( $redirect_to ); ?>" />
+			<?php endif; ?>
+			<div class="tssl-field">
+				<label class="tssl-label" for="tssl-password"><?php esc_html_e( 'Password', 'stealth-access' ); ?></label>
+				<input class="tssl-input" type="password" id="tssl-password" name="tssl_password" placeholder="<?php echo esc_attr__( 'Re-enter your password', 'stealth-access' ); ?>" autocomplete="current-password" required />
+			</div>
+			<div class="tssl-field">
+				<label class="tssl-label" for="tssl-2fa-code"><?php esc_html_e( 'Authentication code', 'stealth-access' ); ?></label>
+				<input class="tssl-input" type="text" id="tssl-2fa-code" name="tssl_2fa_code" placeholder="<?php echo esc_attr__( 'Enter your 2FA code', 'stealth-access' ); ?>" autocomplete="one-time-code" inputmode="numeric" autocapitalize="off" autocorrect="off" spellcheck="false" required />
+			</div>
+			<button class="tssl-button" type="submit">
+				<span><?php esc_html_e( 'Verify and log in', 'stealth-access' ); ?></span>
 				<svg class="tssl-arrow" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
 					<path d="M5 12h14M13 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
 				</svg>
